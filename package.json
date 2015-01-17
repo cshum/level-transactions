@@ -1,0 +1,30 @@
+{
+  "name": "level-transactions",
+  "version": "0.0.1",
+  "description": "transaction wrapper for leveldb",
+  "contributors": [
+    "Adrian C Shum <adrian@cshum.com> (https://github.com/cshum)"
+  ],
+  "scripts": {
+    "test": "set -e; for t in test/*.js; do node $t; done",
+    "clean": "rm -rf node_modules"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:cshum/level-transactions.git"
+  },
+  "keywords": [
+    "node.js",
+    "ACID",
+    "levelup",
+    "level-sublevel",
+    "leveldb"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "underscore": "^1.7.0"
+  },
+  "devDependencies": {
+    "tape": "^3.0.3"
+  }
+}
