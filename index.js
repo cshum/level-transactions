@@ -1,5 +1,12 @@
 var _ = require('underscore');
 
+function hash(key, opts){
+  var prefix = 0;
+  if(opts && opts.prefix && _.isFunction(opts.prefix.prefix))
+    prefix = opts.prefix.prefix();
+  return JSON.stringify([prefix, key]);
+}
+
 module.exports = function( db ){
   var id       = 0;
   var locked   = {};
@@ -10,33 +17,63 @@ module.exports = function( db ){
     id++;
 
     this.deps = {};
+    this.map = {};
     this.batch = [];
 
   }
   var T = Transaction.prototype;
 
+  T.get = function(key, opts, cb){
+    cb = cb || opts || function(){};
+    opts = _.isFunction(opts) ? null: opts;
+
+    var self = this;
+    var _db = opts && opts.prefix && _.isFunction(opts.prefix.get) ? opts.prefix : db;
+    var hashed = hash(key, opts);
+
+    if(this.map.hasOwnProperty(hashed))
+      cb(null, this.map[hashed]);
+    else
+      this._lock(hashed, function(err){
+        if(err) return cb(err);
+        _db.get(key, opts, function(err, value){
+          self.map[hashed] = value;
+          cb(err, value);
+        });
+      });
+    return this;
+  };
+
   T.put = function(key, value, opts, cb){
+    cb = cb || opts || function(){};
+
     this.batch.push(_.extend({
       type: 'put',
       key: key,
       value: value
     }, opts));
 
-    if(typeof cb === 'function')
-      cb(null); //dummy callback
+    this.map[ hash(key, opts) ] = value;
+
+    cb(null);
     return this;
   };
-  T.del = function(key, opts){
+
+  T.del = function(key, opts, cb){
+    cb = cb || opts || function(){};
+
     this.batch.push(_.extend({
       type: 'del',
       key: key
     }, opts));
 
-    if(typeof cb === 'function')
-      cb(null); //dummy callback
+    delete this.map[ hash(key, opts) ];
+
+    cb(null);
     return this;
   };
-  T.lock = function(hash, job){
+
+  T._lock = function(hash, job){
     job = job.bind(this);
     job.t = this;
     
@@ -51,7 +88,7 @@ module.exports = function( db ){
           return;
         }
         if(t.deps[this.id]){
-          job(new Error('Deadlock detected.')); //should be a very rare case
+          job(new Error('Deadlock')); //should be a very rare case
           return this;
         }
         this.deps[t.id] = true;
@@ -90,8 +127,10 @@ module.exports = function( db ){
   T.rollback = function(){
     this._release();
     this.batch = [];
+    this.map = {};
     return this;
   };
+
   T.commit = function(cb){
     var self = this;
     db.batch(this.batch, function(){
