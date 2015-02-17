@@ -15,12 +15,15 @@ module.exports = function( db ){
   }
   var T = Transaction.prototype;
 
-  T.put = function(key, value, opts){
+  T.put = function(key, value, opts, cb){
     this.batch.push(_.extend({
       type: 'put',
       key: key,
       value: value
     }, opts));
+
+    if(typeof cb === 'function')
+      cb(null); //dummy callback
     return this;
   };
   T.del = function(key, opts){
@@ -28,6 +31,9 @@ module.exports = function( db ){
       type: 'del',
       key: key
     }, opts));
+
+    if(typeof cb === 'function')
+      cb(null); //dummy callback
     return this;
   };
   T.lock = function(hash, job){
@@ -45,7 +51,7 @@ module.exports = function( db ){
           return;
         }
         if(t.deps[this.id]){
-          job(new Error('Potential Deadlock detected.'));
+          job(new Error('Deadlock detected.')); //should be a very rare case
           return this;
         }
         this.deps[t.id] = true;
@@ -63,7 +69,7 @@ module.exports = function( db ){
     return this;
   };
 
-  T.release = function(){
+  T._release = function(){
     var hash, i;
     for(hash in this.jobs){
       i = locked[hash].indexOf(this.jobs[hash]);
@@ -82,14 +88,14 @@ module.exports = function( db ){
   };
 
   T.rollback = function(){
-    this.release();
+    this._release();
     this.batch = [];
     return this;
   };
   T.commit = function(cb){
     var self = this;
     db.batch(this.batch, function(){
-      self.release();
+      self._release();
       if(typeof cb === 'function')
         cb.apply(self, arguments);
     });
