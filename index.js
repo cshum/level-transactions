@@ -75,6 +75,26 @@ module.exports = function( db ){
     return this;
   };
 
+  T.rollback = function(cb){
+    cb = cb || function(){};
+
+    this._release();
+    
+    cb(null);
+    return this;
+  };
+
+  T.commit = function(cb){
+    cb = cb || function(){};
+
+    var self = this;
+    db.batch(this.batch, function(){
+      self._release();
+      cb.apply(self, arguments);
+    });
+    return this;
+  };
+
   T._lock = function(hash, job){
     job = job.bind(this);
     job.t = this;
@@ -126,26 +146,6 @@ module.exports = function( db ){
     this._batch = [];
     this._map = {};
 
-    return this;
-  };
-
-  T.rollback = function(cb){
-    cb = cb || function(){};
-
-    this._release();
-    
-    cb(null);
-    return this;
-  };
-
-  T.commit = function(cb){
-    var self = this;
-    cb = cb || function(){};
-
-    db.batch(this.batch, function(){
-      self._release();
-      cb.apply(self, arguments);
-    });
     return this;
   };
 
