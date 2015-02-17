@@ -88,7 +88,7 @@ module.exports = function( db ){
     cb = cb || function(){};
 
     var self = this;
-    db.batch(this.batch, function(){
+    db.batch(this._batch, function(){
       self._release();
       cb.apply(self, arguments);
     });
