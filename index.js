@@ -12,13 +12,13 @@ module.exports = function( db ){
   var locked   = {};
 
   function Transaction(){
-    this.jobs = {};
-    this.id = id.toString(36);
+    this._jobs = {};
+    this._id = id.toString(36);
     id++;
 
-    this.deps = {};
-    this.map = {};
-    this.batch = [];
+    this._deps = {};
+    this._map = {};
+    this._batch = [];
 
   }
   var T = Transaction.prototype;
@@ -31,13 +31,13 @@ module.exports = function( db ){
     var _db = opts && opts.prefix && _.isFunction(opts.prefix.get) ? opts.prefix : db;
     var hashed = hash(key, opts);
 
-    if(this.map.hasOwnProperty(hashed))
-      cb(null, this.map[hashed]);
+    if(this._map.hasOwnProperty(hashed))
+      cb(null, this._map[hashed]);
     else
       this._lock(hashed, function(err){
         if(err) return cb(err);
         _db.get(key, opts, function(err, value){
-          self.map[hashed] = value;
+          self._map[hashed] = value;
           cb(err, value);
         });
       });
@@ -47,13 +47,13 @@ module.exports = function( db ){
   T.put = function(key, value, opts, cb){
     cb = cb || opts || function(){};
 
-    this.batch.push(_.extend({
+    this._batch.push(_.extend({
       type: 'put',
       key: key,
       value: value
     }, opts));
 
-    this.map[ hash(key, opts) ] = value;
+    this._map[ hash(key, opts) ] = value;
 
     cb(null);
     return this;
@@ -62,12 +62,12 @@ module.exports = function( db ){
   T.del = function(key, opts, cb){
     cb = cb || opts || function(){};
 
-    this.batch.push(_.extend({
+    this._batch.push(_.extend({
       type: 'del',
       key: key
     }, opts));
 
-    delete this.map[ hash(key, opts) ];
+    delete this._map[ hash(key, opts) ];
 
     cb(null);
     return this;
@@ -87,20 +87,20 @@ module.exports = function( db ){
           process.nextTick( job );
           return;
         }
-        if(t.deps[this.id]){
+        if(t._deps[this._id]){
           job(new Error('Deadlock')); //should be a very rare case
           return this;
         }
-        this.deps[t.id] = true;
-        for(j in t.deps){
-          this.deps[j] = true;
+        this._deps[t.id] = true;
+        for(j in t._deps){
+          this._deps[j] = true;
         }
       }
     }else{
       locked[hash] = [];
       process.nextTick( job );
     }
-    this.jobs[hash] = job;
+    this._jobs[hash] = job;
     locked[hash].push(job);
 
     return this;
@@ -108,8 +108,8 @@ module.exports = function( db ){
 
   T._release = function(){
     var hash, i;
-    for(hash in this.jobs){
-      i = locked[hash].indexOf(this.jobs[hash]);
+    for(hash in this._jobs){
+      i = locked[hash].indexOf(this._jobs[hash]);
       if(i > -1)
         locked[hash].splice( i, 1 );
       if(locked[hash].length > 0){
@@ -118,16 +118,16 @@ module.exports = function( db ){
       }else{
         delete locked[hash];
       }
-      delete this.jobs[hash];
+      delete this._jobs[hash];
     }
-    this.deps = {};
+    this._deps = {};
     return this;
   };
 
   T.rollback = function(){
     this._release();
-    this.batch = [];
-    this.map = {};
+    this._batch = [];
+    this._map = {};
     return this;
   };
 
