@@ -25,7 +25,7 @@ module.exports = function( db ){
 
   T.get = function(key, opts, cb){
     cb = cb || opts || function(){};
-    opts = _.isFunction(opts) ? null: opts;
+    opts = _.isFunction(opts) ? undefined: opts;
 
     var self = this;
     var _db = opts && opts.prefix && _.isFunction(opts.prefix.get) ? opts.prefix : db;
@@ -46,6 +46,7 @@ module.exports = function( db ){
 
   T.put = function(key, value, opts, cb){
     cb = cb || opts || function(){};
+    opts = _.isFunction(opts) ? undefined: opts;
 
     this._batch.push(_.extend({
       type: 'put',
@@ -61,6 +62,7 @@ module.exports = function( db ){
 
   T.del = function(key, opts, cb){
     cb = cb || opts || function(){};
+    opts = _.isFunction(opts) ? undefined: opts;
 
     this._batch.push(_.extend({
       type: 'del',
@@ -121,22 +123,28 @@ module.exports = function( db ){
       delete this._jobs[hash];
     }
     this._deps = {};
+    this._batch = [];
+    this._map = {};
+
     return this;
   };
 
-  T.rollback = function(){
+  T.rollback = function(cb){
+    cb = cb || function(){};
+
     this._release();
-    this._batch = [];
-    this._map = {};
+    
+    cb(null);
     return this;
   };
 
   T.commit = function(cb){
     var self = this;
+    cb = cb || function(){};
+
     db.batch(this.batch, function(){
       self._release();
-      if(typeof cb === 'function')
-        cb.apply(self, arguments);
+      cb.apply(self, arguments);
     });
     return this;
   };
