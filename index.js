@@ -11,6 +11,7 @@ module.exports = function( db ){
     id++;
 
     this._locked = {};
+    this._waiting = {};
     this._map = {};
     this._deps = {};
     this._batch = [];
@@ -35,13 +36,20 @@ module.exports = function( db ){
       next();
       return;
     }
+    if(this._waiting[ctx.hash]){
+      //todo: add callback to job queue
+      return;
+    }
 
-    function job(err){
-      if(err) return next(err);
+    var job = function(err){
+      if(err) 
+        return next(err);
       self._locked[ctx.hash] = true;
+      delete self._waiting[ctx.hash];
       next();
     }
     job.tx = this;
+    this._waiting[ctx.hash] = job;
 
     var i, j, l;
 
@@ -125,19 +133,27 @@ module.exports = function( db ){
 
   //release middleware during rollback, commit
   function release(ctx, done){
-    for(var hash in this._locked){
+    var hash;
+    for(hash in this._locked){
       if(queued[hash].length > 0){
         var job = queued[hash].shift();
-        process.nextTick(job);
-        // job();
+        // process.nextTick(job);
+        job();
       }else{
         delete queued[hash];
       }
     }
+    //clean up waiting jobs
+    for(hash in this._waiting){
+      var idx = queued[hash].indexOf(this._waiting[hash]);
+      if(idx > -1)
+        queued[hash].splice(idx, 1);
+    }
 
     this._locked = {};
-    this._deps = {};
+    this._waiting = {};
     this._map = {};
+    this._deps = {};
     this._batch = [];
 
     done(null);
