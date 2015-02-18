@@ -22,10 +22,11 @@ module.exports = function( db ){
     var self = this;
 
     //get prefix + key hash
-    ctx.hash = ctx.params.key.toString();
-    if(ctx.params.opts &&
-      typeof ctx.params.opts.prefix === 'function')
-      ctx.hash = [ ctx.params.opts.prefix(), ctx.params.key ].toString();
+    ctx.hash = 
+      ctx.params.opts &&
+      typeof ctx.params.opts.prefix === 'function' ? 
+        [ ctx.params.opts.prefix(), ctx.params.key ].toString():
+        ctx.hash = ctx.params.key.toString();
 
     //skip if lock acquired
     if(this._locked[ctx.hash]){
@@ -75,7 +76,7 @@ module.exports = function( db ){
         ctx.params.opts && 
         ctx.params.opts.prefix && 
         typeof opts.prefix.get === 'function' ? 
-        opts.prefix : db;
+          opts.prefix : db;
 
       _db.get(
         ctx.params.key, 
