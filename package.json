@@ -1,5 +1,5 @@
 {
-  "name": "level-transactions",
+  "name": "level-async-transaction",
   "version": "0.0.1",
   "description": "Transaction wrapper for leveldb. Supports level-sublevel",
   "contributors": [
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:cshum/level-transactions.git"
+    "url": "git@github.com:cshum/level-async-transaction.git"
   },
   "keywords": [
     "node.js",
@@ -21,7 +21,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "underscore": "^1.7.0"
+    "underscore": "^1.7.0",
+    "anchorjs": "^0.2.4"
   },
   "devDependencies": {
     "tape": "^3.0.3",
