@@ -26,7 +26,7 @@ tape('Locking and Isolation',function(t){
           });
         });
       });
-    },1000);
+    },100);
   });
 
   var tx2 = db.transaction();

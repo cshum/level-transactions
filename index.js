@@ -2,13 +2,6 @@ var _      = require('underscore'),
     anchor = require('anchorjs'),
     params = anchor.params;
 
-function hash(key, opts){
-  var prefix = 0;
-  if(opts && opts.prefix && _.isFunction(opts.prefix.prefix))
-    prefix = opts.prefix.prefix();
-  return JSON.stringify([prefix, key]);
-}
-
 module.exports = function( db ){
   var id       = 0;
   var queued   = {};
@@ -26,47 +19,47 @@ module.exports = function( db ){
   var T = anchor(Transaction.prototype);
 
   function lock(ctx, next){
-    ctx.hash = hash(ctx.params.key, ctx.params.opts);
+    var self = this;
 
-    var _locked = this._locked;
-    if(_locked[ctx.hash]){
-      process.nextTick(job);
+    //get prefix + key hash
+    ctx.hash = ctx.params.key.toString();
+    if(ctx.params.opts &&
+      typeof ctx.params.opts.prefix === 'function')
+      ctx.hash = [ ctx.params.opts.prefix(), ctx.params.key ].toString();
+
+    //skip if lock acquired
+    if(this._locked[ctx.hash]){
+      // process.nextTick(job);
+      next();
       return;
     }
 
+    //queue job
     function job(err){
-      if(!err)
-        _locked[ctx.hash] = true;
-      next(err);
+      if(err) return next(err);
+      self._locked[ctx.hash] = true;
+      next();
     }
     job.tx = this;
 
-    if(this._map.hasOwnProperty(ctx.hash)){
-      ctx.current = this._map[ctx.hash];
-    }else{
-      var i, j, l;
+    var i, j, l;
 
-      if(queued[ctx.hash]){
-        for(i = 0, l = queued[ctx.hash].length; i < l; i++){
-          var tx = queued[ctx.hash][i].tx;
-          // if(tx === this){
-          //   this._job();
-          //   return;
-          // }
-          if(tx._deps[this._id]){
-            job(new Error('Deadlock'));
-            return this;
-          }
-          this._deps[tx._id] = true;
-          for(j in tx._deps)
-            this._deps[j] = true;
+    if(queued[ctx.hash]){
+      for(i = 0, l = queued[ctx.hash].length; i < l; i++){
+        var tx = queued[ctx.hash][i].tx;
+        if(tx._deps[this._id]){
+          job(new Error('Deadlock'));
+          return this;
         }
-        queued[ctx.hash].push(job);
-      }else{
-        queued[ctx.hash] = [];
-        process.nextTick(job);
-        // job();
+        this._deps[tx._id] = true;
+        for(j in tx._deps)
+          this._deps[j] = true;
       }
+      queued[ctx.hash].push(job);
+    }else{
+      queued[ctx.hash] = [];
+      // process.nextTick(job);
+      job();
     }
   }
 
@@ -102,11 +95,11 @@ module.exports = function( db ){
     function(ctx, done){
       this._batch.push(_.extend({
         type: 'put',
-        key: key,
-        value: value
-      }, opts));
+        key: ctx.params.key,
+        value: ctx.params.value
+      }, ctx.params.opts));
 
-      this._map[ ctx.hash ] = value;
+      this._map[ ctx.hash ] = ctx.params.value;
 
       done(null);
     }
@@ -120,8 +113,8 @@ module.exports = function( db ){
     function(ctx, done){
       this._batch.push(_.extend({
         type: 'del',
-        key: key
-      }, opts));
+        key: ctx.params.key
+      }, ctx.params.opts));
 
       delete this._map[ ctx.hash ];
 
