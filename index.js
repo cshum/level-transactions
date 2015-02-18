@@ -18,6 +18,7 @@ module.exports = function( db ){
 
   var T = anchor(Transaction.prototype);
 
+  //lock middleware during get, put, del
   function lock(ctx, next){
     var self = this;
 
@@ -122,6 +123,7 @@ module.exports = function( db ){
     }
   );
 
+  //release middleware during rollback, commit
   function release(ctx, done){
     for(var hash in this._locked){
       if(queued[hash].length > 0){
