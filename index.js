@@ -7,7 +7,7 @@ module.exports = function( db ){
   var queued   = {};
 
   function Transaction(){
-    this._id = id.toString(36);
+    this._id = id;
     id++;
 
     this._locked = {};
@@ -21,7 +21,7 @@ module.exports = function( db ){
   function lock(ctx, next){
     var self = this;
 
-    //get prefix + key hash
+    //prefix + key hash
     ctx.hash = 
       ctx.params.opts &&
       typeof ctx.params.opts.prefix === 'function' ? 
@@ -35,7 +35,6 @@ module.exports = function( db ){
       return;
     }
 
-    //queue job
     function job(err){
       if(err) return next(err);
       self._locked[ctx.hash] = true;
@@ -46,6 +45,7 @@ module.exports = function( db ){
     var i, j, l;
 
     if(queued[ctx.hash]){
+      //hash queued; check deadlock and push queue
       for(i = 0, l = queued[ctx.hash].length; i < l; i++){
         var tx = queued[ctx.hash][i].tx;
         if(tx._deps[this._id]){
@@ -58,13 +58,12 @@ module.exports = function( db ){
       }
       queued[ctx.hash].push(job);
     }else{
+      //no queue in hash; run immediately
       queued[ctx.hash] = [];
-      // process.nextTick(job);
       job();
     }
   }
 
-  // var T = Transaction.prototype;
   T.define(
     'get', 
     params('key', 'opts?'),
