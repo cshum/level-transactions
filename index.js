@@ -6,6 +6,25 @@ module.exports = function( db ){
   var id       = 0;
   var queued   = {};
 
+  function Wait(tx, hash){
+    this._tx = tx;
+    this._hash = hash;
+    this._stack = [];
+
+    tx._waiting[hash] = this;
+  }
+  Wait.prototype.add = function(fn){
+    this._stack.push(fn);
+    return this;
+  }
+  Wait.prototype.done = function(){
+    this._tx._locked[this._hash] = true;
+    delete this._tx._waiting[this._hash];
+    _.invoke(this._stack, 'call');
+    return this;
+  }
+
+
   function Transaction(){
     this._id = id;
     id++;
@@ -32,44 +51,36 @@ module.exports = function( db ){
 
     //skip if lock acquired
     if(this._locked[ctx.hash]){
-      // process.nextTick(job);
       next();
       return;
     }
+    //already waiting -> add to wait list
     if(this._waiting[ctx.hash]){
-      //todo: add callback to job queue
+      this._waiting[ctx.hash].add(next);
       return;
     }
-
-    var job = function(err){
-      if(err) 
-        return next(err);
-      self._locked[ctx.hash] = true;
-      delete self._waiting[ctx.hash];
-      next();
-    }
-    job.tx = this;
-    this._waiting[ctx.hash] = job;
+    
+    var wait = new Wait(this, ctx.hash).add(next);
 
     var i, j, l;
 
     if(queued[ctx.hash]){
       //hash queued; check deadlock and push queue
       for(i = 0, l = queued[ctx.hash].length; i < l; i++){
-        var tx = queued[ctx.hash][i].tx;
+        var tx = queued[ctx.hash][i]._tx;
         if(tx._deps[this._id]){
-          job(new Error('Deadlock'));
-          return this;
+          next(new Error('Deadlock'));
+          return;
         }
         this._deps[tx._id] = true;
         for(j in tx._deps)
           this._deps[j] = true;
       }
-      queued[ctx.hash].push(job);
+      queued[ctx.hash].push(wait);
     }else{
-      //no queue in hash; run immediately
+      //no queue in hash; lock immediately
       queued[ctx.hash] = [];
-      job();
+      wait.done();
     }
   }
 
@@ -136,9 +147,7 @@ module.exports = function( db ){
     var hash;
     for(hash in this._locked){
       if(queued[hash].length > 0){
-        var job = queued[hash].shift();
-        // process.nextTick(job);
-        job();
+        queued[hash].shift().done();
       }else{
         delete queued[hash];
       }
