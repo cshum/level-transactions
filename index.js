@@ -6,22 +6,24 @@ module.exports = function( db ){
   var id       = 0;
   var queued   = {};
 
-  function Wait(tx, hash){
-    this._tx = tx;
-    this._hash = hash;
+  function Wait(parent){
+    this._parent = parent;
     this._stack = [];
-
-    tx._waiting[hash] = this;
+  }
+  Wait.prototype.parent = function(){
+    return this._parent;
   }
   Wait.prototype.add = function(fn){
     this._stack.push(fn);
     return this;
   }
-  Wait.prototype.done = function(){
-    this._tx._locked[this._hash] = true;
-    delete this._tx._waiting[this._hash];
+  Wait.prototype.invoke = function(){
     _.invoke(this._stack, 'call');
+    this._stack = [];
     return this;
+  }
+  Wait.prototype.ended = function(){
+    return this._stack.length === 0;
   }
 
 
@@ -29,8 +31,7 @@ module.exports = function( db ){
     this._id = id;
     id++;
 
-    this._locked = {};
-    this._waiting = {};
+    this._wait = {};
     this._map = {};
     this._deps = {};
     this._batch = [];
@@ -49,25 +50,26 @@ module.exports = function( db ){
         [ ctx.params.opts.prefix(), ctx.params.key ].toString():
         ctx.hash = ctx.params.key.toString();
 
-    //skip if lock acquired
-    if(this._locked[ctx.hash]){
-      next();
-      return;
-    }
-    //already waiting -> add to wait list
-    if(this._waiting[ctx.hash]){
-      this._waiting[ctx.hash].add(next);
+    var wait = this._wait[ctx.hash];
+    if(wait){
+      if(wait.ended()){
+        //skip if lock acquired
+        next();
+      }else{
+        //not done waiting -> add to wait list
+        wait.add(next);
+      }
       return;
     }
     
-    var wait = new Wait(this, ctx.hash).add(next);
+    wait = new Wait(this).add(next);
 
     var i, j, l;
 
     if(queued[ctx.hash]){
       //hash queued; check deadlock and push queue
       for(i = 0, l = queued[ctx.hash].length; i < l; i++){
-        var tx = queued[ctx.hash][i]._tx;
+        var tx = queued[ctx.hash][i].parent();
         if(tx._deps[this._id]){
           next(new Error('Deadlock'));
           return;
@@ -80,8 +82,9 @@ module.exports = function( db ){
     }else{
       //no queue in hash; lock immediately
       queued[ctx.hash] = [];
-      wait.done();
+      wait.invoke();
     }
+    this._wait[ctx.hash] = wait;
   }
 
   T.define(
@@ -144,23 +147,24 @@ module.exports = function( db ){
 
   //release middleware during rollback, commit
   function release(ctx, done){
-    var hash;
-    for(hash in this._locked){
-      if(queued[hash].length > 0){
-        queued[hash].shift().done();
+    var hash, wait;
+    for(hash in this._wait){
+      wait = this._wait[hash];
+      if(wait.ended()){
+        if(queued[hash].length > 0){
+          queued[hash].shift().invoke();
+        }else{
+          delete queued[hash];
+        }
       }else{
-        delete queued[hash];
+        //clean up waiting jobs
+        var idx = queued[hash].indexOf(this._wait[hash]);
+        if(idx > -1)
+          queued[hash].splice(idx, 1);
       }
     }
-    //clean up waiting jobs
-    for(hash in this._waiting){
-      var idx = queued[hash].indexOf(this._waiting[hash]);
-      if(idx > -1)
-        queued[hash].splice(idx, 1);
-    }
 
-    this._locked = {};
-    this._waiting = {};
+    this._wait = {};
     this._map = {};
     this._deps = {};
     this._batch = [];

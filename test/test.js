@@ -3,7 +3,7 @@ var tape         = require('tape'),
     down         = require('memdown'),
     transactions = require('../');
 
-tape('Read Lock',function(t){
+tape('1 Lock',function(t){
   t.plan(12);
 
   var db = levelup('test', {
@@ -22,7 +22,7 @@ tape('Read Lock',function(t){
         db.get('a', function(err, value){
           t.notOk(value, 'no value for db get');
           tx.commit(function(err){
-            t.notOk(err, 'no error for commit');
+            t.notOk(err, 'no error for tx commit');
           });
         });
       });
@@ -35,14 +35,14 @@ tape('Read Lock',function(t){
     t.equal(value, 167, 'tx2 get equals 167');
 
     tx2.put('a', value+1, function(err){
-      t.notOk(err, 'no error for put +1');
+      t.notOk(err, 'no error for tx2 put +1');
 
       db.get('a', function(err, value){
         t.notOk(err, 'no error for db get');
         t.equal(value, 167, 'db get equals 167');
 
         tx2.commit(function(err){
-          t.notOk(err, 'no error for commit');
+          t.notOk(err, 'no error for tx2 commit');
 
           db.get('a', function(err, value){
             t.notOk(err, 'no error for db get');
