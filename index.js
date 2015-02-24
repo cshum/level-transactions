@@ -26,6 +26,16 @@ module.exports = function( db ){
   var count    = 0,
       queued   = {};
 
+  function Transaction(){
+    this._id = count;
+    count++;
+
+    this._wait = {};
+    this._map = {};
+    this._deps = {};
+    this._batch = [];
+  }
+
   //lock during get, put, del
   function lock(ctx, next){
     //key + sublevel prefix hash
@@ -146,23 +156,12 @@ module.exports = function( db ){
     done(null);
   }
 
-  function Transaction(){
-    this._id = count;
-    count++;
-
-    this._wait = {};
-    this._map = {};
-    this._deps = {};
-    this._batch = [];
-  }
-
-  var T = anchor(Transaction.prototype);
-
-  T.define('get', params('key','opts?'), lock, get);
-  T.define('put', params('key','value','opts?'), lock, put);
-  T.define('del', params('key', 'opts?'), lock, del);
-  T.define('rollback', release);
-  T.define('commit', commit, release);
+  anchor(Transaction.prototype)
+    .define('get', params('key','opts?'), lock, get)
+    .define('put', params('key','value','opts?'), lock, put)
+    .define('del', params('key','opts?'), lock, del)
+    .define('rollback', release)
+    .define('commit', commit, release);
 
   db.transaction = db.transaction || function(){
     return new Transaction();
