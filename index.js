@@ -23,14 +23,12 @@ Wait.prototype.ended = function(){
 };
 
 module.exports = function( db ){
-  var id       = 0;
-  var queued   = {};
+  var count    = 0,
+      queued   = {};
 
-  //lock middleware during get, put, del
+  //lock during get, put, del
   function lock(ctx, next){
-    var self = this;
-
-    //prefix + key hash
+    //key + sublevel prefix hash
     ctx.hash = 
       ctx.params.opts &&
       typeof ctx.params.opts.prefix === 'function' ? 
@@ -46,35 +44,82 @@ module.exports = function( db ){
         //not done waiting -> add to wait list
         wait.add(next);
       }
-      return;
-    }
-    
-    wait = new Wait(this).add(next);
-
-    var i, j, l;
-
-    if(queued[ctx.hash]){
-      //hash queued; check deadlock and push queue
-      for(i = 0, l = queued[ctx.hash].length; i < l; i++){
-        var tx = queued[ctx.hash][i].parent();
-        if(tx._deps[this._id]){
-          next(new Error('Deadlock'));
-          return;
-        }
-        this._deps[tx._id] = true;
-        for(j in tx._deps)
-          this._deps[j] = true;
-      }
-      queued[ctx.hash].push(wait);
     }else{
-      //no queue in hash; lock immediately
-      queued[ctx.hash] = [];
-      wait.invoke();
+      wait = new Wait(this).add(next);
+      var i, j, l;
+
+      if(queued[ctx.hash]){
+        //check deadlock and push queue
+        for(i = 0, l = queued[ctx.hash].length; i < l; i++){
+          var tx = queued[ctx.hash][i].parent();
+          if(tx._deps[this._id]){
+            next(new Error('Deadlock'));
+            return;
+          }
+          this._deps[tx._id] = true;
+          for(j in tx._deps)
+            this._deps[j] = true;
+        }
+        queued[ctx.hash].push(wait);
+      }else{
+        //no queue in hash; lock immediately
+        queued[ctx.hash] = [];
+        wait.invoke();
+      }
+      this._wait[ctx.hash] = wait;
     }
-    this._wait[ctx.hash] = wait;
   }
 
-  //release middleware during rollback, commit
+  function get(ctx, done){
+    var self = this;
+
+    var _db = 
+      ctx.params.opts && 
+      ctx.params.opts.prefix && 
+      typeof opts.prefix.get === 'function' ? 
+        opts.prefix : db;
+
+    _db.get(
+      ctx.params.key, 
+      ctx.params.opts, 
+      function(err, value){
+        self._map[ ctx.hash ] = value;
+        done.apply(this, arguments);
+      }
+    );
+  }
+
+  function put(ctx, done){
+    this._batch.push(_.extend({
+      type: 'put',
+      key: ctx.params.key,
+      value: ctx.params.value
+    }, ctx.params.opts));
+
+    this._map[ ctx.hash ] = ctx.params.value;
+
+    done(null);
+  }
+
+  function del(ctx, done){
+    this._batch.push(_.extend({
+      type: 'del',
+      key: ctx.params.key
+    }, ctx.params.opts));
+
+    delete this._map[ ctx.hash ];
+
+    done(null);
+  }
+
+  function commit(ctx, next){
+    db.batch(this._batch, function(err){
+      if(err) next(err); 
+      else next();
+    });
+  }
+
+  //release after rollback, commit
   function release(ctx, done){
     var hash, wait;
     for(hash in this._wait){
@@ -102,8 +147,8 @@ module.exports = function( db ){
   }
 
   function Transaction(){
-    this._id = id;
-    id++;
+    this._id = count;
+    count++;
 
     this._wait = {};
     this._map = {};
@@ -113,78 +158,11 @@ module.exports = function( db ){
 
   var T = anchor(Transaction.prototype);
 
-  T.define(
-    'get', 
-    params('key', 'opts?'),
-    lock,
-    function(ctx, done){
-      var self = this;
-
-      var _db = 
-        ctx.params.opts && 
-        ctx.params.opts.prefix && 
-        typeof opts.prefix.get === 'function' ? 
-          opts.prefix : db;
-
-      _db.get(
-        ctx.params.key, 
-        ctx.params.opts, 
-        function(err, value){
-          self._map[ ctx.hash ] = value;
-          done.apply(this, arguments);
-        }
-      );
-    }
-  );
-
-  T.define(
-    'put',
-    params('key', 'value', 'opts?'),
-    lock,
-    function(ctx, done){
-      this._batch.push(_.extend({
-        type: 'put',
-        key: ctx.params.key,
-        value: ctx.params.value
-      }, ctx.params.opts));
-
-      this._map[ ctx.hash ] = ctx.params.value;
-
-      done(null);
-    }
-  );
-
-  T.define(
-    'del',
-    params('key', 'opts?'),
-    lock,
-    function(ctx, done){
-      this._batch.push(_.extend({
-        type: 'del',
-        key: ctx.params.key
-      }, ctx.params.opts));
-
-      delete this._map[ ctx.hash ];
-
-      done(null);
-    }
-  );
-
-  T.define(
-    'rollback',
-    release
-  );
-
-  T.define(
-    'commit',
-    function(ctx, next){
-      db.batch(this._batch, function(err){
-        if(err) next(err); 
-        else next();
-      });
-    },
-    release
-  );
+  T.define('get', params('key','opts?'), lock, get);
+  T.define('put', params('key','value','opts?'), lock, put);
+  T.define('del', params('key', 'opts?'), lock, del);
+  T.define('rollback', release);
+  T.define('commit', commit, release);
 
   db.transaction = db.transaction || function(){
     return new Transaction();
