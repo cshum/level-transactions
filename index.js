@@ -2,42 +2,29 @@ var _      = require('underscore'),
     anchor = require('anchorjs'),
     params = anchor.params;
 
+function Wait(parent){
+  this._parent = parent;
+  this._stack = [];
+}
+Wait.prototype.parent = function(){
+  return this._parent;
+};
+Wait.prototype.add = function(fn){
+  this._stack.push(fn);
+  return this;
+};
+Wait.prototype.invoke = function(){
+  _.invoke(this._stack, 'call');
+  this._stack = [];
+  return this;
+};
+Wait.prototype.ended = function(){
+  return this._stack.length === 0;
+};
+
 module.exports = function( db ){
   var id       = 0;
   var queued   = {};
-
-  function Wait(parent){
-    this._parent = parent;
-    this._stack = [];
-  }
-  Wait.prototype.parent = function(){
-    return this._parent;
-  }
-  Wait.prototype.add = function(fn){
-    this._stack.push(fn);
-    return this;
-  }
-  Wait.prototype.invoke = function(){
-    _.invoke(this._stack, 'call');
-    this._stack = [];
-    return this;
-  }
-  Wait.prototype.ended = function(){
-    return this._stack.length === 0;
-  }
-
-
-  function Transaction(){
-    this._id = id;
-    id++;
-
-    this._wait = {};
-    this._map = {};
-    this._deps = {};
-    this._batch = [];
-  }
-
-  var T = anchor(Transaction.prototype);
 
   //lock middleware during get, put, del
   function lock(ctx, next){
@@ -87,6 +74,45 @@ module.exports = function( db ){
     this._wait[ctx.hash] = wait;
   }
 
+  //release middleware during rollback, commit
+  function release(ctx, done){
+    var hash, wait;
+    for(hash in this._wait){
+      wait = this._wait[hash];
+      if(wait.ended()){
+        if(queued[hash].length > 0){
+          queued[hash].shift().invoke();
+        }else{
+          delete queued[hash];
+        }
+      }else{
+        //clean up waiting jobs
+        var idx = queued[hash].indexOf(this._wait[hash]);
+        if(idx > -1)
+          queued[hash].splice(idx, 1);
+      }
+    }
+
+    this._wait = {};
+    this._map = {};
+    this._deps = {};
+    this._batch = [];
+
+    done(null);
+  }
+
+  function Transaction(){
+    this._id = id;
+    id++;
+
+    this._wait = {};
+    this._map = {};
+    this._deps = {};
+    this._batch = [];
+  }
+
+  var T = anchor(Transaction.prototype);
+
   T.define(
     'get', 
     params('key', 'opts?'),
@@ -128,7 +154,6 @@ module.exports = function( db ){
     }
   );
 
-
   T.define(
     'del',
     params('key', 'opts?'),
@@ -144,33 +169,6 @@ module.exports = function( db ){
       done(null);
     }
   );
-
-  //release middleware during rollback, commit
-  function release(ctx, done){
-    var hash, wait;
-    for(hash in this._wait){
-      wait = this._wait[hash];
-      if(wait.ended()){
-        if(queued[hash].length > 0){
-          queued[hash].shift().invoke();
-        }else{
-          delete queued[hash];
-        }
-      }else{
-        //clean up waiting jobs
-        var idx = queued[hash].indexOf(this._wait[hash]);
-        if(idx > -1)
-          queued[hash].splice(idx, 1);
-      }
-    }
-
-    this._wait = {};
-    this._map = {};
-    this._deps = {};
-    this._batch = [];
-
-    done(null);
-  }
 
   T.define(
     'rollback',
