@@ -81,8 +81,10 @@ module.exports = function( db ){
   }
 
   function get(ctx, done){
-    var self = this;
+    if(ctx.hash in this._map)
+      return done(null, this._map[ctx.hash]);
 
+    var self = this;
     var _db = 
       ctx.params.opts && 
       ctx.params.opts.prefix && 
@@ -106,7 +108,7 @@ module.exports = function( db ){
       value: ctx.params.value
     }, ctx.params.opts));
 
-    this._map[ ctx.hash ] = ctx.params.value;
+    this._map[ctx.hash] = ctx.params.value;
 
     done(null);
   }
@@ -117,7 +119,7 @@ module.exports = function( db ){
       key: ctx.params.key
     }, ctx.params.opts));
 
-    delete this._map[ ctx.hash ];
+    this._map[ctx.hash] = undefined;
 
     done(null);
   }
