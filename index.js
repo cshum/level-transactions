@@ -81,8 +81,10 @@ module.exports = function( db ){
   }
 
   function get(ctx, done){
-    if(ctx.hash in this._map)
-      return done(null, this._map[ctx.hash]);
+    if(ctx.hash in this._map){
+      done(null, this._map[ctx.hash]);
+      return;
+    }
 
     var self = this;
     var _db = 
@@ -91,13 +93,11 @@ module.exports = function( db ){
       typeof opts.prefix.get === 'function' ? 
         opts.prefix : db;
 
-    _db.get(
-      ctx.params.key, 
-      ctx.params.opts, 
-      function(err, value){
-        self._map[ ctx.hash ] = value;
-        done.apply(this, arguments);
-      }
+    _db.get.apply(
+      _db, [].concat(ctx.args, function(err, val){
+        self._map[ctx.hash] = val;
+        done(err, val);
+      })
     );
   }
 
