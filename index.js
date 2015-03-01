@@ -1,6 +1,6 @@
 var _      = require('underscore'),
-    anchor = require('anchorjs'),
-    params = anchor.params;
+    ginga  = require('ginga'),
+    params = ginga.params;
 
 function Wait(parent){
   this._parent = parent;
@@ -158,7 +158,7 @@ module.exports = function( db ){
     done(null);
   }
 
-  anchor(Transaction.prototype)
+  ginga(Transaction.prototype)
     .define('get', params('key','opts?'), lock, get)
     .define('put', params('key','value','opts?'), lock, put)
     .define('del', params('key','opts?'), lock, del)
