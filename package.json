@@ -21,7 +21,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "ginga": "^0.1.0",
+    "ginga": "^0.1.3",
     "underscore": "^1.7.0"
   },
   "devDependencies": {
