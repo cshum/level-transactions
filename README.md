@@ -5,21 +5,36 @@ Uses Two-Phase Commit approach with read/write lock, commits and rollbacks for l
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
-###db.transaction()
-
-Create a transaction object.
-
     var levelup = require('levelup');
     var db = levelup('./db');
 
     var tx = db.transaction();
+    tx.get('k', function(err, value){
+      setTimeout(function(){
+        tx.put('k', 167, function(err){
+          tx.commit();
+        });
+      },100);
+    });
+    var tx2 = db.transaction();
+    tx2.get('k', function(err, value){
+      tx2.put('k', value + 1, function(err, value){
+        tx2.commit(function(){
+          //k now equals to 168
+        });
+      });
+    });
+
+###db.transaction()
+
+Create a transaction object.
 
 ###tx.get(key[, options][, callback])
 
 `get()` fetches data from store, or the transaction object if lock acquired. 
 
 It acquires a read lock for `key`, and callback with value or `NotFoundError` only when lock acquired successfully. 
-Otherwise if callback with `Deadlock` error, read lock failed due to potential deadlock.
+Otherwise if read lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.put(key, value[, options][, callback])
 
@@ -27,7 +42,7 @@ Otherwise if callback with `Deadlock` error, read lock failed due to potential d
 and will only be inserted into the store upon successful commit. 
 
 It acquires a write lock for the `key`, and callback only when lock acquired.
-Otherwise if callback with `Deadlock` error, write lock failed due to potential deadlock.
+Otherwise if write lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.del(key[, options][, callback])
 
@@ -35,8 +50,7 @@ Otherwise if callback with `Deadlock` error, write lock failed due to potential 
 and will only be removed from the store upon successful commit. 
 
 It acquires a write lock for the `key`, and callback only when lock acquired.
-Otherwise if callback with `Deadlock` error, write lock failed due to potential deadlock.
-
+Otherwise if write lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.commit([callback])
 
