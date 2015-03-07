@@ -11,7 +11,7 @@ npm install level-async-transaction
 
 ```Javascript
 var levelup = require('levelup');
-var db = levelup('./db');
+var db = levelup('./db',{ valueEncoding: 'json' });
 
 var transaction = require('level-async-transaction');
 transaction(db);
