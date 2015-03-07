@@ -5,9 +5,16 @@ Uses Two-Phase Commit approach with read/write lock, commits and rollbacks for l
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
+```bash
+npm install level-async-transaction
+```
+
 ```Javascript
 var levelup = require('levelup');
 var db = levelup('./db');
+
+var transaction = require('level-async-transaction');
+transaction(db);
 
 var tx = db.transaction();
 tx.get('k', function(err, value){
