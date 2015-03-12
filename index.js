@@ -39,12 +39,16 @@ module.exports = function( db ){
 
   //lock during get, put, del
   function lock(ctx, next){
+    //check sublevel
+    if(ctx.params.opts && 
+      ctx.params.opts.prefix && 
+      typeof opts.prefix.sublevel === 'function')
+      ctx.prefix = ctx.params.opts.prefix;
+
+    ctx.hash = JSON.stringify(ctx.params.key);
     //key + sublevel prefix hash
-    ctx.hash = 
-      ctx.params.opts &&
-      typeof ctx.params.opts.prefix === 'function' ? 
-        [ ctx.params.opts.prefix(), ctx.params.key ].toString():
-        ctx.hash = ctx.params.key.toString();
+    if(ctx.prefix)
+      ctx.hash = JSON.stringify([ctx.prefix.prefix(), ctx.params.key])
 
     var wait = this._wait[ctx.hash];
     if(wait){
@@ -88,11 +92,9 @@ module.exports = function( db ){
     }
 
     var self = this;
-    var _db = 
-      ctx.params.opts && 
-      ctx.params.opts.prefix && 
-      typeof opts.prefix.get === 'function' ? 
-        opts.prefix : db;
+    var _db = db;
+    if(ctx.prefix) 
+      _db = ctx.prefix;
 
     _db.get.apply(
       _db, [].concat(ctx.args, function(err, val){
