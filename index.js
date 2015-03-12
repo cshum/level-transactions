@@ -42,13 +42,13 @@ module.exports = function( db ){
     //check sublevel
     if(ctx.params.opts && 
       ctx.params.opts.prefix && 
-      typeof opts.prefix.sublevel === 'function')
+      typeof ctx.params.opts.prefix.sublevel === 'function')
       ctx.prefix = ctx.params.opts.prefix;
 
     ctx.hash = JSON.stringify(ctx.params.key);
     //key + sublevel prefix hash
     if(ctx.prefix)
-      ctx.hash = JSON.stringify([ctx.prefix.prefix(), ctx.params.key])
+      ctx.hash = JSON.stringify([ctx.prefix.prefix(), ctx.params.key]);
 
     var wait = this._wait[ctx.hash];
     if(wait){
