@@ -1,5 +1,6 @@
 var _      = require('underscore'),
     ginga  = require('ginga'),
+    queue  = require('queue-async'),
     params = ginga.params;
 
 function Wait(parent){
@@ -14,7 +15,7 @@ Wait.prototype.add = function(fn){
   return this;
 };
 Wait.prototype.invoke = function(){
-  _.invoke(this._stack, 'call');
+  _.invoke(this._stack, 'apply', null, arguments);
   this._stack = [];
   return this;
 };
@@ -63,7 +64,7 @@ module.exports = function( db ){
         for(i = 0, l = queued[ctx.hash].length; i < l; i++){
           var tx = queued[ctx.hash][i].parent();
           if(tx._deps[this._id]){
-            next(new Error('Deadlock'));
+            wait.invoke(new Error('Deadlock'));
             return;
           }
           this._deps[tx._id] = true;
@@ -125,9 +126,23 @@ module.exports = function( db ){
   }
 
   function commit(ctx, next){
-    db.batch(this._batch, function(err){
-      if(err) next(err); 
-      else next();
+    var q = queue();
+    var self = this;
+
+    //defer waiting locks
+    for(var hash in this._wait){
+      var wait = this._wait[hash];
+      var add = wait.add.bind(wait);
+      if(!wait.ended())
+        q.defer(add);
+    }
+    q.awaitAll(function(err){
+      if(err)
+        return next(err);
+      db.batch(self._batch, function(err, res){
+        if(err) next(err); 
+        else next();
+      });
     });
   }
 
