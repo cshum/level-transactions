@@ -7,19 +7,20 @@ function Wait(parent){
   this._parent = parent;
   this._stack = [];
 }
-Wait.prototype.parent = function(){
+var W = Wait.prototype;
+W.parent = function(){
   return this._parent;
 };
-Wait.prototype.add = function(fn){
+W.add = function(fn){
   this._stack.push(fn);
   return this;
 };
-Wait.prototype.invoke = function(){
+W.invoke = function(){
   _.invoke(this._stack, 'apply', null, arguments);
   this._stack = [];
   return this;
 };
-Wait.prototype.ended = function(){
+W.ended = function(){
   return this._stack.length === 0;
 };
 
@@ -28,6 +29,7 @@ module.exports = function( db ){
       queued   = {};
 
   function Transaction(){
+    this.db = db;
     this._id = count;
     count++;
 
