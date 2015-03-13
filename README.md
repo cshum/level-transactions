@@ -28,7 +28,9 @@ var tx2 = db.transaction();
 tx2.get('k', function(err, value){
   tx2.put('k', value + 1);
   tx2.commit(function(){
-    //k now equals to 168 in db
+    db.get('k', function(err, data){
+      //data now equals to 168
+    });
   });
 });
 ```
