@@ -17,19 +17,18 @@ var transaction = require('level-async-transaction');
 transaction(db);
 
 var tx = db.transaction();
-tx.get('k', function(err, value){
-  setTimeout(function(){
-    tx.put('k', 167, function(err){
-      tx.commit();
-    });
-  },100);
-});
+
+tx.put('k', 167);
+setTimeout(function(){
+  tx.commit();
+},100);
+
 var tx2 = db.transaction();
+
 tx2.get('k', function(err, value){
-  tx2.put('k', value + 1, function(err, value){
-    tx2.commit(function(){
-      //k now equals to 168 in store
-    });
+  tx2.put('k', value + 1);
+  tx2.commit(function(){
+    //k now equals to 168 in db
   });
 });
 ```
@@ -42,7 +41,7 @@ Create a transaction object.
 
 `get()` fetches data from store, or transaction object if lock acquired. 
 
-It acquires a read lock for `key`, and callback with value or `NotFoundError` only when lock acquired successfully. 
+It acquires a lock for `key`, and callback with value or `NotFoundError` only when lock successfully acquired. 
 Otherwise if read lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.put(key, value[, options][, callback])
@@ -50,7 +49,7 @@ Otherwise if read lock failed due to potential deadlock, callback with error Dea
 `put()` inserts data into transaction object, 
 and will only be inserted into store upon successful commit. 
 
-It acquires a write lock for the `key`, and callback only when lock acquired.
+It acquires a lock for the `key`, and callback only when lock acquired.
 Otherwise if write lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.del(key[, options][, callback])
@@ -58,16 +57,17 @@ Otherwise if write lock failed due to potential deadlock, callback with error De
 `del()` removes data from transaction object, 
 and will only be removed from store upon successful commit. 
 
-It acquires a write lock for the `key`, and callback only when lock acquired.
-Otherwise if write lock failed due to potential deadlock, callback with error Deadlock.
+It acquires a lock for the `key`, and callback only when lock acquired.
+Otherwise if lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.commit([callback])
 
-`commit()` batches data from transaction object into the store.
+`commit()` wait for all locks to be acquired, then batches data from transaction object into the store.
 Uses levelup's `batch()` under the hood, 
 all operations will be written to the database atomically, that is, they will either all succeed or fail with no partial commits.
 
 Upon successful or failed commit, locks acquired during transaction will be released.
+Otherwise if lock failed due to potential deadlock, callback with error Deadlock.
 
 ###tx.rollback([callback])
 
