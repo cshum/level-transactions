@@ -1,7 +1,7 @@
 # level-async-transaction
 
-Async transaction wrapper for [levelup](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
-Uses Two-Phase Commit approach, supports read/write lock, commits and rollbacks for levelup database. Compatible with level-sublevel prefix.
+Transaction layer for [levelup](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
+Uses Two-Phase Commit approach, applies lock on a per-key basis, atomic commits and rollbacks for levelup database. Compatible with level-sublevel prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
