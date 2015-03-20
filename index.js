@@ -33,6 +33,9 @@ module.exports = function( db ){
     this._id = count;
     count++;
 
+    this._q = queue();
+    this.defer = this._q.defer.bind(this._q);
+
     this._wait = {};
     this._map = {};
     this._deps = {};
@@ -130,7 +133,6 @@ module.exports = function( db ){
   }
 
   function commit(ctx, next){
-    var q = queue();
     var self = this;
 
     //defer waiting locks
@@ -138,9 +140,9 @@ module.exports = function( db ){
       var wait = this._wait[hash];
       var add = wait.add.bind(wait);
       if(!wait.ended())
-        q.defer(add);
+        this._q.defer(add);
     }
-    q.awaitAll(function(err){
+    this._q.awaitAll(function(err){
       if(err)
         return next(err);
       db.batch(self._batch, function(err, res){
@@ -169,6 +171,7 @@ module.exports = function( db ){
       }
     }
 
+    this._q = queue();
     this._wait = {};
     this._map = {};
     this._deps = {};
