@@ -1,6 +1,6 @@
 # level-async-transaction
 
-In-memory transaction layer for [levelup](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
+Transaction layer for [levelup](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
 Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for levelup database. Compatible with level-sublevel prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
@@ -74,6 +74,40 @@ Otherwise if lock failed due to potential deadlock, callback with error Deadlock
 ###tx.rollback([callback])
 
 `rollback()` releases locks acquired during transaction.
+
+###tx.defer(task)
+
+Utility function for deferring commit,
+which adds an asynchronous `task` function to the transaction queue. 
+The `task` will be called with a callback argument, which should be invoked when the task has finished.
+```Javascript
+
+var levelup = require('levelup');
+var db = levelup('./db',{ valueEncoding: 'json' });
+transactions(db);
+
+var tx = db.transaction();
+
+tx.put('k', 167);
+setTimeout(function(){
+  tx.commit();
+}, 100);
+
+var tx2 = db.transaction();
+
+//defer additional tasks
+tx2.defer(function(cb){
+  tx2.get('k', function(err, value){
+    tx2.put('k', value+1);
+    cb();
+  });
+});
+tx2.commit(function(err){
+  db.get('k', function(err, value){
+    //data now equals to 168
+  });
+});
+```
 
 ## License
 
