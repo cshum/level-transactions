@@ -169,13 +169,8 @@ module.exports = function( db ){
         if(idx > -1)
           queued[hash].splice(idx, 1);
       }
+      delete this._wait[hash];
     }
-
-    this._q = queue();
-    this._wait = {};
-    this._map = {};
-    this._deps = {};
-    this._batch = [];
 
     done(null);
   }
