@@ -1,7 +1,9 @@
 # level-async-transaction
 
-Transaction layer for [levelup](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
+Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
 Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for levelup database. Compatible with level-sublevel prefix.
+
+LevelDB supports atomic batched operations out of box. By implementing a key + prefix based asynchronous semaphore and isolated object, this makes `level-async-transaction` ACID compliant.
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
