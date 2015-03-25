@@ -28,8 +28,9 @@ module.exports = function( db ){
   var count    = 0,
       queued   = {};
 
-  function Transaction(){
+  function Transaction(options){
     this.db = db;
+    this.options = options;
     this._id = count;
     count++;
 
@@ -95,26 +96,22 @@ module.exports = function( db ){
       done(null, this._map[ctx.hash]);
       return;
     }
-
     var self = this;
-    var _db = db;
-    if(ctx.prefix) 
-      _db = ctx.prefix;
 
-    _db.get.apply(
-      _db, [].concat(ctx.args, function(err, val){
-        self._map[ctx.hash] = val;
-        done(err, val);
-      })
-    );
+    (ctx.prefix || db).get(ctx.params.key, _.defaults(
+      {}, ctx.params.opts, this.options
+    ), function(err, val){
+      self._map[ctx.hash] = val;
+      done(err, val);
+    });
   }
 
   function put(ctx, done){
-    this._batch.push(_.extend({
+    this._batch.push(_.defaults({
       type: 'put',
       key: ctx.params.key,
       value: ctx.params.value
-    }, ctx.params.opts));
+    }, ctx.params.opts, this.options));
 
     this._map[ctx.hash] = ctx.params.value;
 
@@ -122,10 +119,10 @@ module.exports = function( db ){
   }
 
   function del(ctx, done){
-    this._batch.push(_.extend({
+    this._batch.push(_.defaults({
       type: 'del',
       key: ctx.params.key
-    }, ctx.params.opts));
+    }, ctx.params.opts, this.options));
 
     this._map[ctx.hash] = undefined;
 
@@ -182,8 +179,8 @@ module.exports = function( db ){
     .define('rollback', release)
     .define('commit', commit, release);
 
-  db.transaction = db.transaction || function(){
-    return new Transaction();
+  db.transaction = db.transaction || function(options){
+    return new Transaction(options);
   };
   return db;
 };
