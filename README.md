@@ -37,9 +37,9 @@ tx2.get('k', function(err, value){
 });
 ```
 
-###db.transaction()
+###db.transaction([options])
 
-Create a transaction object.
+Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) and [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
 
 ###tx.get(key[, options][, callback])
 

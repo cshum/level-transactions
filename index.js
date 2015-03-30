@@ -45,11 +45,13 @@ module.exports = function( db ){
 
   //lock during get, put, del
   function lock(ctx, next){
+    //options object
+    ctx.options = _.defaults({}, ctx.params.opts, this.options);
+
     //check sublevel
-    if(ctx.params.opts && 
-      ctx.params.opts.prefix && 
-      typeof ctx.params.opts.prefix.sublevel === 'function')
-      ctx.prefix = ctx.params.opts.prefix;
+    if(ctx.options && ctx.options.prefix && 
+      typeof ctx.options.prefix.sublevel === 'function')
+      ctx.prefix = ctx.options.prefix;
 
     ctx.hash = JSON.stringify(ctx.params.key);
     //key + sublevel prefix hash
@@ -111,7 +113,7 @@ module.exports = function( db ){
       type: 'put',
       key: ctx.params.key,
       value: ctx.params.value
-    }, ctx.params.opts, this.options));
+    }, ctx.options));
 
     this._map[ctx.hash] = ctx.params.value;
 
@@ -122,7 +124,7 @@ module.exports = function( db ){
     this._batch.push(_.defaults({
       type: 'del',
       key: ctx.params.key
-    }, ctx.params.opts, this.options));
+    }, ctx.options));
 
     this._map[ctx.hash] = undefined;
 

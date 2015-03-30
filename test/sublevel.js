@@ -12,24 +12,27 @@ tape('Sublevel Lock',function(t){
     db: down,
     valueEncoding: 'json'
   }));
+
+  transactions(db);
   var sub = db.sublevel('sub');
   var sub2 = db.sublevel('sub2');
 
-  transactions(db);
+  var tx = db.transaction({prefix: sub});
+  var tx2 = db.transaction({prefix: sub});
+  var tx3 = db.transaction({prefix: sub2});
+  var tx4 = db.transaction({prefix: sub2});
 
-  var tx = db.transaction();
-  var tx2 = db.transaction();
+  tx.put('k',167);
+  tx3.put('k',199);
 
-  tx.put('k',167, {prefix: sub});
-  setTimeout(function(){
-    tx.commit();
-  }, 100);
+  setTimeout(tx.commit.bind(tx), 100);
+  setTimeout(tx3.commit.bind(tx3), 100);
 
-  tx2.get('k',{prefix: sub}, function(err, value){
+  tx2.get('k',function(err, value){
     t.notOk(err, 'no error for tx2 get');
     t.equal(value, 167, 'tx2 get equals 167');
 
-    tx2.put('k', value+1, {prefix: sub});
+    tx2.put('k', value+1);
     tx2.commit(function(err){
       t.notOk(err, 'no error for tx2 commit');
 
@@ -40,19 +43,11 @@ tape('Sublevel Lock',function(t){
     });
   });
 
-  var tx3 = db.transaction();
-  var tx4 = db.transaction();
-
-  tx3.put('k',199, {prefix: sub2});
-  setTimeout(function(){
-    tx3.commit();
-  }, 100);
-
-  tx4.get('k',{prefix: sub2}, function(err, value){
+  tx4.get('k',function(err, value){
     t.notOk(err, 'no error for tx4 get');
     t.equal(value, 199, 'tx4 get equals 199');
 
-    tx4.put('k', value+1, {prefix: sub2});
+    tx4.put('k', value+1);
     tx4.commit(function(err){
       t.notOk(err, 'no error for tx4 commit');
 
