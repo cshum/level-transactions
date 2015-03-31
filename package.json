@@ -1,7 +1,7 @@
 {
   "name": "level-async-transaction",
   "version": "0.0.9",
-  "description": "Async transaction wrapper for leveldb. Compatible with level-sublevel prefix.",
+  "description": "Transaction layer for levelDB. Compatible with level-sublevel prefix.",
   "contributors": [
     "Adrian C Shum <adrian@cshum.com> (https://github.com/cshum)"
   ],

@@ -131,8 +131,14 @@ module.exports = function( db ){
     done(null);
   }
 
-  function commit(ctx, next){
+  function commit(ctx, next, end){
     var self = this;
+
+    //rollback on commit error
+    end(function(err){
+      if(err)
+        self.rollback();
+    });
 
     //defer waiting locks
     for(var hash in this._wait){

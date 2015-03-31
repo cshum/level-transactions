@@ -46,7 +46,7 @@ Create a transaction object. Takes an optional `options` argument, accepts prope
 `get()` fetches data from store, or transaction object if lock acquired. 
 
 It acquires a lock for `key`, and callback with value or `NotFoundError` only when lock successfully acquired. 
-Otherwise if read lock failed due to potential deadlock, callback with error Deadlock.
+Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
 
 ###tx.put(key, value[, options][, callback])
 
@@ -54,7 +54,7 @@ Otherwise if read lock failed due to potential deadlock, callback with error Dea
 and will only be inserted into store upon successful commit. 
 
 It acquires a lock for the `key`, and callback only when lock acquired.
-Otherwise if write lock failed due to potential deadlock, callback with error Deadlock.
+Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
 
 ###tx.del(key[, options][, callback])
 
@@ -62,26 +62,27 @@ Otherwise if write lock failed due to potential deadlock, callback with error De
 and will only be removed from store upon successful commit. 
 
 It acquires a lock for the `key`, and callback only when lock acquired.
-Otherwise if lock failed due to potential deadlock, callback with error Deadlock.
+Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
 
 ###tx.commit([callback])
 
 `commit()` wait for all locks to be acquired, then batches data from transaction object into the store.
-Uses levelup's `batch()` under the hood, 
-all operations will be written to the database atomically, that is, they will either all succeed or fail with no partial commits.
 
-Upon successful or failed commit, locks acquired during transaction will be released.
-Otherwise if lock failed due to potential deadlock, callback with error Deadlock.
+Upon successful commit, operations will be written to store atomically. 
+Rollback on error.
+Uses levelup's `batch()` under the hood.
 
-###tx.rollback([callback])
-
-`rollback()` releases locks acquired during transaction.
+Locks acquired during transaction will be released on both success or error.
 
 ###tx.defer(task)
 
 Utility function for deferring commit,
 which adds an asynchronous `task` function to the transaction queue. 
-The `task` will be called with a callback argument, which should be invoked when the task has finished.
+
+`task` will be called with a callback argument, should be invoked when the task has finished.
+
+Callback with error argument will result in error on commit, hence rollback of transaction.
+
 ```Javascript
 
 var levelup = require('levelup');
