@@ -11,7 +11,7 @@ LevelDB supports atomic batched operations out of box. Durability is configurabl
 npm install level-async-transaction
 ```
 
-```Javascript
+```js
 var levelup = require('levelup');
 var db = levelup('./db',{ valueEncoding: 'json' });
 
@@ -43,26 +43,30 @@ Create a transaction object. Takes an optional `options` argument, accepts prope
 
 ###tx.get(key[, options][, callback])
 
-`get()` fetches data from store, or transaction object if lock acquired. 
+`get()` fetches data from store or transaction object if lock acquired. 
 
 It acquires a lock for `key`, and callback with value or `NotFoundError` only when lock successfully acquired. 
-Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
+
+A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
 
 ###tx.put(key, value[, options][, callback])
 
 `put()` inserts data into transaction object, 
 and will only be inserted into store upon successful commit. 
 
-It acquires a lock for the `key`, and callback only when lock acquired.
-Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
+It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
+
+A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
 
 ###tx.del(key[, options][, callback])
 
 `del()` removes data from transaction object, 
 and will only be removed from store upon successful commit. 
 
-It acquires a lock for the `key`, and callback only when lock acquired.
-Otherwise if read lock failed due to potential deadlock, callback with error and cancel operation.
+
+It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
+
+A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
 
 ###tx.commit([callback])
 
@@ -74,17 +78,24 @@ Uses levelup's `batch()` under the hood.
 
 Locks acquired during transaction will be released on both success or error.
 
+###tx.rollback([callback])
+
+`rollback()` releases locks acquired during transaction.
+
+This method is optional as locks are automatically released in case of `commit()` error.
+
 ###tx.defer(task)
 
 Utility function for deferring commit,
 which adds an asynchronous `task` function to the transaction queue. 
 
+This is useful when achieving "nested transaction" kind of control flow.
+
 `task` will be called with a callback argument, should be invoked when the task has finished.
 
 Callback with error argument will result in error on commit, hence rollback of transaction.
 
-```Javascript
-
+```js
 var levelup = require('levelup');
 var db = levelup('./db',{ valueEncoding: 'json' });
 transactions(db);
