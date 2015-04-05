@@ -49,6 +49,7 @@ module.exports = function( db ){
     //defer commit
     this._q.defer(function(cb){
       end(function(err){
+        //notFoundError should not block commit
         cb(err && !err.notFound ? err : null);
       });
     });
