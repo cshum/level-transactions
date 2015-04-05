@@ -35,7 +35,8 @@ module.exports = function( db ){
     count++;
 
     this._q = queue();
-    this.defer = this._q.defer.bind(this._q);
+    this._dq = queue(1);
+    this.defer = this._dq.defer.bind(this._dq);
 
     this._wait = {};
     this._map = {};
@@ -46,7 +47,7 @@ module.exports = function( db ){
   //lock during get, put, del
   function lock(ctx, next, end){
     //defer commit
-    this.defer(function(cb){
+    this._q.defer(function(cb){
       end(function(err){
         cb(err && !err.notFound ? err : null);
       });
@@ -145,6 +146,8 @@ module.exports = function( db ){
       if(err)
         self.rollback();
     });
+
+    this._q.defer(this._dq.awaitAll);
 
     this._q.awaitAll(function(err){
       if(err)
