@@ -44,7 +44,8 @@ module.exports = function( db ){
   }
 
   //lock during get, put, del
-  function lock(ctx, next){
+  function lock(ctx, next, end){
+    this.defer(end);
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -104,7 +105,7 @@ module.exports = function( db ){
       {}, ctx.params.opts, this.options
     ), function(err, val){
       self._map[ctx.hash] = val;
-      done(err, val);
+      done(err && !err.notFound ? err:null, val);
     });
   }
 
@@ -140,13 +141,6 @@ module.exports = function( db ){
         self.rollback();
     });
 
-    //defer waiting locks
-    for(var hash in this._wait){
-      var wait = this._wait[hash];
-      var add = wait.add.bind(wait);
-      if(!wait.ended())
-        this._q.defer(add);
-    }
     this._q.awaitAll(function(err){
       if(err)
         return next(err);
