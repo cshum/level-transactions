@@ -45,7 +45,12 @@ module.exports = function( db ){
 
   //lock during get, put, del
   function lock(ctx, next, end){
-    this.defer(end);
+    //defer commit
+    this.defer(function(cb){
+      end(function(err){
+        cb(err && !err.notFound ? err : null);
+      });
+    });
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -105,7 +110,7 @@ module.exports = function( db ){
       {}, ctx.params.opts, this.options
     ), function(err, val){
       self._map[ctx.hash] = val;
-      done(err && !err.notFound ? err:null, val);
+      done(err, val);
     });
   }
 
