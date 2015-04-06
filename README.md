@@ -1,5 +1,7 @@
 # level-async-transaction
 
+**This module is still under active development and is not to be used in production**
+
 Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
 Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for levelup. Compatible with level-sublevel prefix.
 
