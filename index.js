@@ -1,7 +1,6 @@
 var _         = require('underscore'),
     ginga     = require('ginga'),
-    params    = ginga.params,
-    queue     = require('queue-async');
+    params    = ginga.params;
 
 function semaphore(n){
   if(!(this instanceof semaphore))
@@ -30,6 +29,18 @@ s.leave = function(){
   return this;
 };
 
+function start(fn, err){
+  var self = this;
+  if(this.length > 0 && !err){
+    //todo: prepare nested queue
+    this.shift()(function(err){
+      process.nextTick(start.bind(self, fn, err));
+    });
+  }else{
+    fn(err);
+  }
+}
+
 module.exports = function( db ){
 
   var count = 0, map = {};
@@ -52,8 +63,8 @@ module.exports = function( db ){
     this._map = {};
     this._batch = [];
 
-    this._q = queue(1);
-    this.defer = this._q.defer.bind(this._q);
+    this._q = [];
+    this.defer = Array.prototype.push.bind(this._q);
 
     // this._deps = {};
   }
@@ -84,7 +95,6 @@ module.exports = function( db ){
     function invoke(){
       plan--; if(plan === 0) next();
     }
-    var q = queue();
 
     if(!this._wait[ctx.hash]){
       //gain mutually exclusive access for transaction
@@ -167,7 +177,7 @@ module.exports = function( db ){
         });
     }
 
-    this._q.awaitAll(function(err){
+    start.call(this._q, function(err){
       if(err)
         return next(err);
       plan = _.size(self._wait);

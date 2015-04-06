@@ -22,7 +22,6 @@
   "license": "MIT",
   "dependencies": {
     "ginga": "^0.1.5",
-    "queue-async": "^1.0.7",
     "underscore": "^1.7.0"
   },
   "devDependencies": {
