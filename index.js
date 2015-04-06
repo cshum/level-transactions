@@ -29,17 +29,26 @@ s.leave = function(){
   return this;
 };
 
-function start(fn, err){
+function queue(){
+  if(!(this instanceof queue))
+    return new queue();
+  this._q = [];
+}
+var q = queue.prototype;
+q.defer = function(fn){
+  this._q.push(fn);
+};
+q.start = function(fn, err){
   var self = this;
-  if(this.length > 0 && !err){
+  if(this._q.length > 0 && !err){
     //todo: prepare nested queue
-    this.shift()(function(err){
-      process.nextTick(start.bind(self, fn, err));
+    this._q.shift()(function(err){
+      process.nextTick(self.start.bind(self, fn, err));
     });
   }else{
     fn(err);
   }
-}
+};
 
 module.exports = function( db ){
 
@@ -63,8 +72,8 @@ module.exports = function( db ){
     this._map = {};
     this._batch = [];
 
-    this._q = [];
-    this.defer = Array.prototype.push.bind(this._q);
+    this._q = queue();
+    this.defer = this._q.defer.bind(this._q);
 
     // this._deps = {};
   }
@@ -177,7 +186,7 @@ module.exports = function( db ){
         });
     }
 
-    start.call(this._q, function(err){
+    this._q.start(function(err){
       if(err)
         return next(err);
       plan = _.size(self._wait);
