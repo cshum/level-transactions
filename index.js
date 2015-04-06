@@ -49,7 +49,7 @@ module.exports = function( db ){
 
     this._wait = {};
 
-    this._q = queue();
+    this._q = queue(1);
     this.defer = this._q.defer.bind(this._q);
 
     this._map = {};
