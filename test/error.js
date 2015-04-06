@@ -22,7 +22,7 @@ tape('Defer Error',function(t){
   txE.put('k', 0);
   txE.defer(function(cb){
     setTimeout(function(){
-      cb(new Error());
+      cb(new Error('booom'));
     }, 100);
   });
   txE.commit(function(err){

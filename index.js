@@ -1,32 +1,43 @@
-var _      = require('underscore'),
-    ginga  = require('ginga'),
-    queue  = require('queue-async'),
-    params = ginga.params;
+var _         = require('underscore'),
+    ginga     = require('ginga'),
+    params    = ginga.params,
+    queue     = require('queue-async');
 
-function Wait(parent){
-  this._parent = parent;
-  this._stack = [];
+function semaphore(n){
+  if(!(this instanceof semaphore))
+    return new semaphore(n);
+  this._q = [];
+  this._taken = 0;
+  this._n = n || 1;
 }
-var W = Wait.prototype;
-W.parent = function(){
-  return this._parent;
-};
-W.add = function(fn){
-  this._stack.push(fn);
+var s = semaphore.prototype;
+s.take = function(fn){
+  if(this._taken < this._n){
+    this._taken++;
+    process.nextTick(fn);
+  }else
+    this._q.push(fn);
   return this;
 };
-W.invoke = function(){
-  _.invoke(this._stack, 'apply', null, arguments);
-  this._stack = [];
+s.leave = function(){
+  if(this._q.length > 0){
+    process.nextTick(this._q.shift());
+  }else{
+    if(this._taken === 0)
+      throw new Error('leave called too many times.');
+    this._taken--;
+  }
   return this;
-};
-W.ended = function(){
-  return this._stack.length === 0;
 };
 
 module.exports = function( db ){
-  var count    = 0,
-      queued   = {};
+
+  var count = 0, map = {};
+
+  function mutual(hash){
+    map[hash] = map[hash] || semaphore(1);
+    return map[hash];
+  }
 
   function Transaction(options){
     this.db = db;
@@ -34,25 +45,19 @@ module.exports = function( db ){
     this._id = count;
     count++;
 
-    this._q = queue();
-    this._dq = queue(1);
-    this.defer = this._dq.defer.bind(this._dq);
+    this._released = false;
 
     this._wait = {};
+
+    this._q = queue();
+    this.defer = this._q.defer.bind(this._q);
+
     this._map = {};
-    this._deps = {};
+    // this._deps = {};
     this._batch = [];
   }
 
-  //lock during get, put, del
-  function lock(ctx, next, end){
-    //defer commit
-    this._q.defer(function(cb){
-      end(function(err){
-        //notFoundError should not block commit
-        cb(err && !err.notFound ? err : null);
-      });
-    });
+  function pre(ctx, next){
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -61,44 +66,53 @@ module.exports = function( db ){
       typeof ctx.options.prefix.sublevel === 'function')
       ctx.prefix = ctx.options.prefix;
 
-    ctx.hash = JSON.stringify(ctx.params.key);
     //key + sublevel prefix hash
-    if(ctx.prefix)
-      ctx.hash = JSON.stringify([ctx.prefix.prefix(), ctx.params.key]);
+    ctx.hash = JSON.stringify(
+      ctx.prefix ? [ctx.prefix.prefix(), ctx.params.key] : ctx.params.key
+    );
 
-    var wait = this._wait[ctx.hash];
-    if(wait){
-      if(wait.ended()){
-        //skip if lock acquired
-        next();
-      }else{
-        //not done waiting -> add to wait list
-        wait.add(next);
-      }
-    }else{
-      wait = new Wait(this).add(next);
-      var i, j, l;
+    next();
+  }
+  function lock(ctx, next, end){
+    var self = this;
 
-      if(queued[ctx.hash]){
-        //check deadlock and push queue
-        for(i = 0, l = queued[ctx.hash].length; i < l; i++){
-          var tx = queued[ctx.hash][i].parent();
-          if(tx._deps[this._id]){
-            wait.invoke(new Error('Deadlock'));
-            return;
-          }
-          this._deps[tx._id] = true;
-          for(j in tx._deps)
-            this._deps[j] = true;
-        }
-        queued[ctx.hash].push(wait);
-      }else{
-        //no queue in hash; lock immediately
-        queued[ctx.hash] = [];
-        wait.invoke();
-      }
-      this._wait[ctx.hash] = wait;
+    if(this._released)
+      return next(new Error('Transaction has already been committed/rollback.'));
+
+    var n = 0;
+    function check(){
+      n--;
+      if(n === 0) next();
     }
+    var q = queue();
+
+    if(!this._wait[ctx.hash]){
+      //gain mutually exclusive access for transaction
+      
+      var mu = mutual(ctx.hash);
+      n++;
+      mu.take(function(){
+        if(self._released){
+          mu.leave();
+          return;
+        }
+        check();
+      });
+      this._wait[ctx.hash] = semaphore(1);
+    }
+    var wait = this._wait[ctx.hash];
+
+    n++;
+    wait.take(check);
+
+    end(function(err){
+      if(err && !err.notFound){ 
+        //Error that abort transaction
+        self.rollback();
+        return;
+      }
+      wait.leave(); //relase wait
+    });
   }
 
   function get(ctx, done){
@@ -142,51 +156,44 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
+    var n = _.size(self._wait);
+    function check(){
+      n--;
+      if(n === 0){
+        db.batch(self._batch, function(err, res){
+          if(err) next(err); 
+          else next();
+        });
+      }
+    }
+
     //rollback on commit error
     end(function(err){
       if(err)
         self.rollback();
-    });
 
-    this._q.defer(this._dq.awaitAll);
+      _.each(self._wait, function(wait, hash){
+        mutual(hash).leave();
+      });
+    });
 
     this._q.awaitAll(function(err){
       if(err)
         return next(err);
-      db.batch(self._batch, function(err, res){
-        if(err) next(err); 
-        else next();
-      });
+      _.invoke(self._wait, 'take', check);
     });
   }
 
   //release after rollback, commit
   function release(ctx, done){
-    var hash, wait;
-    for(hash in this._wait){
-      wait = this._wait[hash];
-      if(wait.ended()){
-        if(queued[hash].length > 0){
-          queued[hash].shift().invoke();
-        }else{
-          delete queued[hash];
-        }
-      }else{
-        //clean up waiting jobs
-        var idx = queued[hash].indexOf(this._wait[hash]);
-        if(idx > -1)
-          queued[hash].splice(idx, 1);
-      }
-      delete this._wait[hash];
-    }
-
+    this._released = true;
     done(null);
   }
 
   ginga(Transaction.prototype)
-    .define('get', params('key','opts?'), lock, get)
-    .define('put', params('key','value','opts?'), lock, put)
-    .define('del', params('key','opts?'), lock, del)
+    .define('get', params('key','opts?'), pre, lock, get)
+    .define('put', params('key','value','opts?'), pre, lock, put)
+    .define('del', params('key','opts?'), pre, lock, del)
     .define('rollback', release)
     .define('commit', commit, release);
 
