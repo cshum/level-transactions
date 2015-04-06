@@ -28,6 +28,9 @@ s.leave = function(){
   }
   return this;
 };
+s.empty = function(){
+  return this._taken === 0;
+};
 
 function queue(){
   if(!(this instanceof queue))
@@ -52,12 +55,7 @@ q.start = function(fn, err){
 
 module.exports = function( db ){
 
-  var count = 0, map = {};
-
-  function mutual(hash){
-    map[hash] = map[hash] || semaphore(1);
-    return map[hash];
-  }
+  var count = 0, mutual = {};
 
   function Transaction(options){
     this.db = db;
@@ -106,9 +104,9 @@ module.exports = function( db ){
     }
 
     if(!this._wait[ctx.hash]){
-      //gain mutually exclusive access for transaction
+      //gain mutually exclusive access to transaction
       
-      var mu = mutual(ctx.hash);
+      var mu = mutual[ctx.hash] = mutual[ctx.hash] || semaphore(1);
       plan++;
       mu.take(function(){
         if(self._released){
@@ -205,7 +203,9 @@ module.exports = function( db ){
     this._released = true;
 
     _.each(this._taken, function(t, hash){
-      mutual(hash).leave();
+      mutual[hash].leave();
+      if(mutual[hash].empty())
+        delete mutual[hash];
     });
 
     delete this._wait;
