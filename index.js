@@ -48,13 +48,14 @@ module.exports = function( db ){
     this._released = false;
 
     this._wait = {};
+    this._taken = {};
+    this._map = {};
+    this._batch = [];
 
     this._q = queue(1);
     this.defer = this._q.defer.bind(this._q);
 
-    this._map = {};
     // this._deps = {};
-    this._batch = [];
   }
 
   function pre(ctx, next){
@@ -79,10 +80,9 @@ module.exports = function( db ){
     if(this._released)
       return next(new Error('Transaction has already been committed/rollback.'));
 
-    var n = 0;
-    function check(){
-      n--;
-      if(n === 0) next();
+    var plan = 0;
+    function invoke(){
+      plan--; if(plan === 0) next();
     }
     var q = queue();
 
@@ -90,20 +90,21 @@ module.exports = function( db ){
       //gain mutually exclusive access for transaction
       
       var mu = mutual(ctx.hash);
-      n++;
+      plan++;
       mu.take(function(){
         if(self._released){
           mu.leave();
           return;
         }
-        check();
+        self._taken[ctx.hash] = true;
+        invoke();
       });
       this._wait[ctx.hash] = semaphore(1);
     }
     var wait = this._wait[ctx.hash];
 
-    n++;
-    wait.take(check);
+    plan++;
+    wait.take(invoke);
 
     end(function(err){
       if(err && !err.notFound){ 
@@ -156,37 +157,42 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
-    var n = _.size(self._wait);
-    function check(){
-      n--;
-      if(n === 0){
+    var plan = 0;
+    function invoke(){
+      plan--;
+      if(plan === 0)
         db.batch(self._batch, function(err, res){
           if(err) next(err); 
           else next();
         });
-      }
     }
-
-    //rollback on commit error
-    end(function(err){
-      if(err)
-        self.rollback();
-
-      _.each(self._wait, function(wait, hash){
-        mutual(hash).leave();
-      });
-    });
 
     this._q.awaitAll(function(err){
       if(err)
         return next(err);
-      _.invoke(self._wait, 'take', check);
+      plan = _.size(self._wait);
+      _.invoke(self._wait, 'take', invoke);
+    });
+
+    end(function(err){
+      //rollback on commit error
+      if(err)
+        self.rollback();
     });
   }
 
   //release after rollback, commit
   function release(ctx, done){
     this._released = true;
+
+    _.each(this._taken, function(t, hash){
+      mutual(hash).leave();
+    });
+
+    delete this._wait;
+    delete this._taken;
+    delete this._map;
+    delete this._batch;
     done(null);
   }
 
