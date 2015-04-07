@@ -49,7 +49,7 @@ Create a transaction object. Takes an optional `options` argument, accepts prope
 
 It acquires a lock for `key`, and callback with value or `NotFoundError` only when lock successfully acquired. 
 
-A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
+<!-- A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation. -->
 
 ###tx.put(key, value[, options][, callback])
 
@@ -58,7 +58,7 @@ and will only be inserted into store upon successful commit.
 
 It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
 
-A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
+<!-- A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation. -->
 
 ###tx.del(key[, options][, callback])
 
@@ -68,7 +68,7 @@ and will only be removed from store upon successful commit.
 
 It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
 
-A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation.
+<!-- A rare case but if lock failed due to potential deadlock, `callback` with error and cancel operation. -->
 
 ###tx.commit([callback])
 

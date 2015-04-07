@@ -1,67 +1,8 @@
 var _         = require('underscore'),
     ginga     = require('ginga'),
+    semaphore = require('./semaphore'),
+    queue     = require('./queue'),
     params    = ginga.params;
-
-function semaphore(n){
-  if(!(this instanceof semaphore))
-    return new semaphore(n);
-  this._q = [];
-  this._taken = 0;
-  this._n = n || 1;
-}
-var s = semaphore.prototype;
-s.take = function(fn){
-  if(this._taken < this._n){
-    this._taken++;
-    process.nextTick(fn);
-  }else
-    this._q.push(fn);
-  return this;
-};
-s.leave = function(){
-  if(this._q.length > 0){
-    process.nextTick(this._q.shift());
-  }else{
-    if(this._taken === 0)
-      throw new Error('leave called too many times.');
-    this._taken--;
-  }
-  return this;
-};
-s.empty = function(){
-  return this._taken === 0;
-};
-
-function queue(){
-  if(!(this instanceof queue))
-    return new queue();
-  this._q = [[]];
-}
-var q = queue.prototype;
-q.defer = function(fn){
-  this._q[this._q.length - 1].push(fn);
-  return this;
-};
-q.start = function(fn, err){
-  var self = this;
-  var q = this._q[this._q.length - 1];
-  if(q.length > 0 && !err){
-    //todo: prepare nested queue
-    this._q.push([]);
-    q.shift()(function(err){
-      if(err)
-        return self.start(fn, err);
-      process.nextTick(function(){
-        self.start(function(err){
-          self._q.pop();
-          self.start(fn, err);
-        });
-      });
-    });
-  }else{
-    fn(err);
-  }
-};
 
 module.exports = function( db ){
 
