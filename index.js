@@ -28,6 +28,9 @@ module.exports = function( db ){
   }
 
   function pre(ctx, next){
+    if(this._released)
+      return next(new Error('Transaction has already been released.'));
+
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -43,11 +46,9 @@ module.exports = function( db ){
 
     next();
   }
+
   function lock(ctx, next, end){
     var self = this;
-
-    if(this._released)
-      return next(new Error('Transaction has already been committed/rollback.'));
 
     var plan = 0;
     function invoke(){
@@ -151,7 +152,8 @@ module.exports = function( db ){
 
   //release after rollback, commit
   function release(ctx, done){
-    this._released = true;
+    if(this._released)
+      return done(new Error('Transaction has already been released.'));
 
     _.each(this._taken, function(t, hash){
       mutual[hash].leave();
@@ -163,6 +165,9 @@ module.exports = function( db ){
     delete this._taken;
     delete this._map;
     delete this._batch;
+
+    this._released = true;
+
     done(null);
   }
 
