@@ -11,7 +11,7 @@ q.defer = function(fn){
 q.start = function(fn, err){
   var self = this;
   var q = this._q[this._q.length - 1];
-  if(q.length > 0 && !err){
+  if(q.length > 0 && !(err && !err.notFound)){
     this._q.push([]);
     q.shift()(function(err){
       if(err)
