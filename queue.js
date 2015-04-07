@@ -11,6 +11,7 @@ q.defer = function(fn){
 q.start = function(fn, err){
   var self = this;
   var q = this._q[this._q.length - 1];
+  //notFound err wont block queue
   if(q.length > 0 && !(err && !err.notFound)){
     this._q.push([]);
     q.shift()(function(err){

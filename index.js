@@ -23,8 +23,6 @@ module.exports = function( db ){
 
     this._q = queue();
     this.defer = this._q.defer.bind(this._q);
-
-    // this._deps = {};
   }
 
   function pre(ctx, next){
@@ -62,6 +60,7 @@ module.exports = function( db ){
       plan++;
       mu.take(function(){
         if(self._released){
+          //irrelevant if transaction released
           mu.leave();
           return;
         }
