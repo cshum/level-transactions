@@ -5,14 +5,11 @@ var _         = require('underscore'),
     params    = ginga.params;
 
 module.exports = function( db ){
-
-  var count = 0, mutual = {};
+  var mutual = {};
 
   function Transaction(options){
     this.db = db;
     this.options = options;
-    this._id = count;
-    count++;
 
     this._released = false;
 
