@@ -17,7 +17,7 @@ q.start = function(fn, err){
     q.shift()(function(err){
       if(err)
         return self.start(fn, err);
-      process.nextTick(function(){
+      setImmediate(function(){
         self.start(function(err){
           self._q.pop();
           self.start(fn, err);

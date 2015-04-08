@@ -9,14 +9,14 @@ var s = Semaphpre.prototype;
 s.take = function(fn){
   if(this._taken < this._n){
     this._taken++;
-    process.nextTick(fn);
+    setImmediate(fn);
   }else
     this._q.push(fn);
   return this;
 };
 s.leave = function(){
   if(this._q.length > 0){
-    process.nextTick(this._q.shift());
+    setImmediate(this._q.shift());
   }else{
     if(this._taken === 0)
       throw new Error('leave called too many times.');
