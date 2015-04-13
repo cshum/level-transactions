@@ -6,7 +6,7 @@ var _         = require('underscore'),
 
 module.exports = function( db ){
 
-  var count = 0, mutual = {};
+  var count = 0, mutex = {};
 
   function Transaction(options){
     this.db = db;
@@ -16,7 +16,7 @@ module.exports = function( db ){
 
     this._released = false;
 
-    this._wait = {};
+    this._mutex = {};
     this._taken = {};
     this._map = {};
     this._batch = [];
@@ -53,10 +53,10 @@ module.exports = function( db ){
       plan--; if(plan === 0) next();
     }
 
-    if(!this._wait[ctx.hash]){
-      //gain mutually exclusive access to transaction
+    if(!this._mutex[ctx.hash]){
+      //gain mutexly exclusive access to transaction
       
-      var mu = mutual[ctx.hash] = mutual[ctx.hash] || semaphore(1);
+      var mu = mutex[ctx.hash] = mutex[ctx.hash] || semaphore(1);
       plan++;
       mu.take(function(){
         if(self._released){
@@ -67,9 +67,9 @@ module.exports = function( db ){
         self._taken[ctx.hash] = true;
         invoke();
       });
-      this._wait[ctx.hash] = semaphore(1);
+      this._mutex[ctx.hash] = semaphore(1);
     }
-    var wait = this._wait[ctx.hash];
+    var wait = this._mutex[ctx.hash];
 
     plan++;
     wait.take(invoke);
@@ -138,8 +138,8 @@ module.exports = function( db ){
     this._q.start(function(err){
       if(err)
         return next(err);
-      plan = _.size(self._wait);
-      _.invoke(self._wait, 'take', invoke);
+      plan = _.size(self._mutex);
+      _.invoke(self._mutex, 'take', invoke);
     });
 
     end(function(err){
@@ -155,12 +155,12 @@ module.exports = function( db ){
       return done(new Error('Transaction has already been released.'));
 
     _.each(this._taken, function(t, hash){
-      mutual[hash].leave();
-      if(mutual[hash].empty())
-        delete mutual[hash];
+      mutex[hash].leave();
+      if(mutex[hash].empty())
+        delete mutex[hash];
     });
 
-    delete this._wait;
+    delete this._mutex;
     delete this._taken;
     delete this._map;
     delete this._batch;
