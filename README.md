@@ -44,19 +44,18 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 `level-async-transaction` gives a foundation for building an asynchronous, transactional data store with LevelDB on Node.js.
 
-##How it works?
+##How it works
 Levelup API methods are asynchronous.
 level-async-transaction maintains a two-level async mutexes to ensure sequential ordering of operations:
 
 * 1st level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
 * 2nd level: operation mutex ensures sequential operations of `get`, `put`, `del` within the transaction.
 
-Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, built on `batch()` of LevelDB.
-
+Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ##Limitations
 * This assumes typical usage of LevelDB, which runs on a single node.js process. Usage in a distributed environment is currently not supported.
-* Only `get`, `put`, `del` methods available for transaction. "Range locks" for createReadStream is not currently supported.
+* Only `get`, `put`, `del` methods available for transaction. "Range locks" for createReadStream is not yet implemented.
 
 ##API
 
