@@ -11,8 +11,6 @@ module.exports = function( db ){
   function Transaction(options){
     this.db = db;
     this.options = options;
-    this._id = count;
-    count++;
 
     this._released = false;
 
