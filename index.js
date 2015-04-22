@@ -22,7 +22,7 @@ module.exports = function( db ){
     this.defer = this._q.defer.bind(this._q);
   }
 
-  function pre(ctx, next){
+  function pre(ctx, next, end){
     if(this._released)
       return next(new Error('Transaction has already been released.'));
 
@@ -39,7 +39,10 @@ module.exports = function( db ){
       ctx.prefix ? [ctx.prefix.prefix(), ctx.params.key] : ctx.params.key
     );
 
-    next();
+    this.defer(function(cb){
+      next();
+      end(cb);
+    });
   }
 
   function lock(ctx, next, end){
@@ -62,15 +65,17 @@ module.exports = function( db ){
           return;
         }
         self._taken[ctx.hash] = true;
-        invoke();
+        console.log(ctx.method, ctx.hash);
+        next();
       });
-      this._wait[ctx.hash] = semaphore(1);
+      this._wait[ctx.hash] = true;
     }
-    var wait = this._wait[ctx.hash];
+    // var wait = this._wait[ctx.hash];
 
-    plan++;
-    wait.take(invoke);
+    // plan++;
+    // wait.take(invoke);
 
+    /*
     end(function(err){
       if(err && !err.notFound){ 
         //Error that abort transaction
@@ -79,6 +84,7 @@ module.exports = function( db ){
       }
       wait.leave(); //relase wait
     });
+    */
   }
 
   function get(ctx, done){
@@ -135,8 +141,10 @@ module.exports = function( db ){
     this._q.start(function(err){
       if(err)
         return next(err);
-      plan = _.size(self._wait);
-      _.invoke(self._wait, 'take', invoke);
+      db.batch(self._batch, function(err, res){
+        if(err) next(err); 
+        else next();
+      });
     });
 
     end(function(err){
