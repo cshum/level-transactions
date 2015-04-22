@@ -1,10 +1,8 @@
 {
   "name": "level-async-transaction",
   "version": "0.1.2",
-  "description": "Transaction layer for levelDB. Compatible with level-sublevel prefix.",
-  "contributors": [
-    "Adrian C Shum <adrian@cshum.com> (https://github.com/cshum)"
-  ],
+  "description": "Transaction layer for LevelDB and level-sublevel.",
+  "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
     "test": "set -e; for t in test/*.js; do node $t; done"
   },
