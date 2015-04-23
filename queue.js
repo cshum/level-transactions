@@ -1,35 +1,43 @@
-function defer(fn){
-  this._q[this._q.length - 1].push(fn);
-  return this;
-}
-function start(fn, err){
-  var self = this;
-  var q = this._q[this._q.length - 1];
-  //notFound err wont block queue
-  if(q.length > 0 && !(err && !err.notFound)){
-    this._q.push([]);
-    q.shift()(function(err){
-      if(err)
-        return self.start(fn, err);
-      setImmediate(function(){
-        self.start(function(err){
-          self._q.pop();
-          self.start(fn, err);
-        });
-      });
-    });
-  }else{
-    fn(err);
-  }
-  return this;
-}
+var semaphore = require('./semaphore');
 
 function Queue(q){
   if(!(this instanceof Queue))
     return new Queue(q);
-  this._q = this._q || [[]];
+  this._q = this._q || [semaphore(1)];
+  this._error = null;
 }
-Queue.prototype.defer = defer;
-Queue.prototype.start = start;
+
+Queue.prototype.defer = function(fn){
+  var self = this;
+  var sema = this._q[this._q.length - 1];
+  function callback(){
+    self._q.pop();
+    sema.leave();
+  }
+  sema.take(function(){
+    if(self._error)
+      return sema.leave();
+    self._q.push(semaphore(1));
+    fn(function(err){
+      //notFound err wont block queue
+      if(err && !err.notFound){
+        self._error = err;
+        callback();
+      }else
+        self.defer(callback);
+    });
+  });
+  return this;
+};
+
+Queue.prototype.done = function(fn, err){
+  var self = this;
+  var sema = this._q[0];
+  sema.take(function(){
+    fn(self._error);
+    sema.leave();
+  });
+  return this;
+};
 
 module.exports = Queue;

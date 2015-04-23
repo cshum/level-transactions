@@ -18,9 +18,8 @@ module.exports = function( db ){
     this._map = {};
     this._batch = [];
 
-    var q = queue();
-    this.defer = q.defer.bind(q);
-    this.start = q.start.bind(q);
+    this._q = queue();
+    this.defer = this._q.defer.bind(this._q);
   }
 
   function pre(ctx, next, end){
@@ -108,7 +107,7 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
-    this.start(function(err){
+    this._q.done(function(err){
       if(err)
         return next(err);
       db.batch(self._batch, function(err, res){
