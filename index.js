@@ -24,9 +24,6 @@ module.exports = function( db ){
   _.extend(Transaction.prototype, Queue.prototype);
 
   function pre(ctx, next, end){
-    if(this._released)
-      return next(this._error || new Error('Transaction released.'));
-
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -48,6 +45,9 @@ module.exports = function( db ){
 
   function lock(ctx, next, end){
     var self = this;
+
+    if(this._released)
+      return next(this._error || new Error('Transaction released.'));
 
     if(!this._wait[ctx.hash]){
       //gain mutexly exclusive access to transaction
