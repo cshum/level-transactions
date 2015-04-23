@@ -15,18 +15,17 @@ npm install level-async-transaction
 var levelup = require('levelup');
 var db = levelup('./db',{ valueEncoding: 'json' });
 
-var transaction = require('level-async-transaction');
-transaction(db);
+require('level-async-transaction')(db);
 
 var tx = db.transaction();
 var tx2 = db.transaction();
+
+tx.put('k', 167);
 
 tx2.get('k', function(err, value){
   tx2.put('k', value + 1);
 });
 
-//tx committed before tx2
-tx.put('k', 167);
 tx.commit();
 
 tx2.commit(function(err){
@@ -45,7 +44,7 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ##How it works
 Levelup API methods are asynchronous.
-level-async-transaction maintains queue + mutex control to ensure sequential ordering of operations:
+level-async-transaction maintains a queue + mutex control to ensure sequential ordering of operations:
 
 * 1st level: operation queue ensures sequential operations of `get`, `put`, `del` within the transaction.
 * 2nd level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
