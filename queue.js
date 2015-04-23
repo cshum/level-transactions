@@ -1,14 +1,10 @@
-function Queue(){
-  if(!(this instanceof Queue))
-    return new Queue();
-  this._q = [[]];
-}
-var q = Queue.prototype;
-q.defer = function(fn){
+function defer(fn){
+  this._q = this._q || [[]];
   this._q[this._q.length - 1].push(fn);
   return this;
-};
-q.start = function(fn, err){
+}
+function start(fn, err){
+  this._q = this._q || [[]];
   var self = this;
   var q = this._q[this._q.length - 1];
   //notFound err wont block queue
@@ -27,6 +23,17 @@ q.start = function(fn, err){
   }else{
     fn(err);
   }
-  return;
-};
+  return this;
+}
+
+function Queue(q){
+  if(!(this instanceof Queue))
+    return new Queue(q);
+  q = q || {};
+
+  q.defer = defer;
+  q.start = start;
+
+  return q;
+}
 module.exports = Queue;

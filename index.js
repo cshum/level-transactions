@@ -17,10 +17,9 @@ module.exports = function( db ){
     this._taken = {};
     this._map = {};
     this._batch = [];
-
-    this._q = queue();
-    this.defer = this._q.defer.bind(this._q);
   }
+
+  queue(Transaction.prototype);
 
   function pre(ctx, next, end){
     if(this._released)
@@ -107,10 +106,9 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
-    this._q.start(function(err){
+    this.start(function(err){
       if(err)
         return next(err);
-      console.log('commit');
       db.batch(self._batch, function(err, res){
         if(err) next(err); 
         else next();
