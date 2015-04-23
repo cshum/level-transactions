@@ -1,8 +1,6 @@
 var semaphore = require('./semaphore');
 
-function Queue(q){
-  if(!(this instanceof Queue))
-    return new Queue(q);
+function Queue(){
   this._q = this._q || [semaphore(1)];
   this._error = null;
 }
@@ -20,11 +18,13 @@ Queue.prototype.defer = function(fn){
     self._q.push(semaphore(1));
     fn(function(err){
       //notFound err wont block queue
-      if(err && !err.notFound){
+      if(err && !err.notFound)
         self._error = err;
-        callback();
-      }else
-        self.defer(callback);
+      var sema2 = self._q.pop();
+      sema2.take(function(){
+        sema2.leave();
+        sema.leave();
+      });
     });
   });
   return this;
@@ -34,9 +34,15 @@ Queue.prototype.done = function(fn, err){
   var self = this;
   var sema = this._q[0];
   sema.take(function(){
+    self._q.pop();
     fn(self._error);
     sema.leave();
   });
+  return this;
+};
+
+Queue.prototype.error = function(err){
+  this._error = err;
   return this;
 };
 

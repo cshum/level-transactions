@@ -1,7 +1,7 @@
 var _         = require('underscore'),
     ginga     = require('ginga'),
     semaphore = require('./semaphore'),
-    queue     = require('./queue'),
+    Queue     = require('./queue'),
     params    = ginga.params;
 
 module.exports = function( db ){
@@ -17,10 +17,11 @@ module.exports = function( db ){
     this._taken = {};
     this._map = {};
     this._batch = [];
-
-    this._q = queue();
-    this.defer = this._q.defer.bind(this._q);
+    
+    Queue.call(this);
   }
+
+  _.extend(Transaction.prototype, Queue.prototype);
 
   function pre(ctx, next, end){
     if(this._released)
@@ -107,7 +108,7 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
-    this._q.done(function(err){
+    this.done(function(err){
       if(err)
         return next(err);
       db.batch(self._batch, function(err, res){
