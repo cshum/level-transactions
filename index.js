@@ -5,7 +5,7 @@ var _         = require('underscore'),
     params    = ginga.params;
 
 module.exports = function( db ){
-  var mutual = {};
+  var mutex = {};
 
   function Transaction(options){
     this.db = db;
@@ -48,43 +48,22 @@ module.exports = function( db ){
   function lock(ctx, next, end){
     var self = this;
 
-    var plan = 0;
-    function invoke(){
-      plan--; if(plan === 0) next();
-    }
-
     if(!this._wait[ctx.hash]){
-      //gain mutually exclusive access to transaction
+      //gain mutexly exclusive access to transaction
       
-      var mu = mutual[ctx.hash] = mutual[ctx.hash] || semaphore(1);
-      plan++;
+      var mu = mutex[ctx.hash] = mutex[ctx.hash] || semaphore(1);
       mu.take(function(){
         if(self._released){
-          //irrelevant if transaction released
           mu.leave();
           return;
         }
         self._taken[ctx.hash] = true;
-        console.log(ctx.method, ctx.hash);
         next();
       });
       this._wait[ctx.hash] = true;
     }
-    // var wait = this._wait[ctx.hash];
-
-    // plan++;
-    // wait.take(invoke);
-
-    /*
-    end(function(err){
-      if(err && !err.notFound){ 
-        //Error that abort transaction
-        self.rollback();
-        return;
-      }
-      wait.leave(); //relase wait
-    });
-    */
+    if(this._taken[ctx.hash])
+      next();
   }
 
   function get(ctx, done){
@@ -128,19 +107,10 @@ module.exports = function( db ){
   function commit(ctx, next, end){
     var self = this;
 
-    var plan = 0;
-    function invoke(){
-      plan--;
-      if(plan === 0)
-        db.batch(self._batch, function(err, res){
-          if(err) next(err); 
-          else next();
-        });
-    }
-
     this._q.start(function(err){
       if(err)
         return next(err);
+      console.log('commit');
       db.batch(self._batch, function(err, res){
         if(err) next(err); 
         else next();
@@ -160,9 +130,9 @@ module.exports = function( db ){
       return done(new Error('Transaction has already been released.'));
 
     _.each(this._taken, function(t, hash){
-      mutual[hash].leave();
-      if(mutual[hash].empty())
-        delete mutual[hash];
+      mutex[hash].leave();
+      if(mutex[hash].empty())
+        delete mutex[hash];
     });
 
     delete this._wait;

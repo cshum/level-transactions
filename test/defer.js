@@ -16,19 +16,19 @@ tape('Defer lock',function(t){
   var tx2 = db.transaction();
 
   tx.put('k', 167);
-  setTimeout(function(){
-    tx.commit();
-  }, 100);
 
-  tx2.defer(function(cb){
-    tx2.get('k', function(err, value){
-      t.notOk(err, 'no error for tx2 get');
-      t.equal(value, 167, 'tx2 get equals 167');
+  tx2.get('k', function(err, value){
+    tx2.defer(function(cb){
+      setTimeout(function(){
+        t.notOk(err, 'no error for tx2 get');
+        t.equal(value, 167, 'tx2 get equals 167');
 
-      tx2.put('k', value+1);
-      cb();
+        tx2.put('k', value+1);
+        cb();
+      },100);
     });
   });
+  tx.commit();
   tx2.commit(function(err){
     t.notOk(err, 'no error for tx2 commit');
 

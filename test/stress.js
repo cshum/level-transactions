@@ -14,23 +14,23 @@ tape('Lock 100',function(t){
   transactions(db);
 
   var tx = db.transaction();
+  var tx2 = db.transaction();
+
   tx.put('k', 0);
-  tx.commit();
 
   var n = 100;
 
   _.range(n).forEach(function(i){
-    var tx = db.transaction();
-    tx.get('k', function(err, val){
-      tx.put('k', val + 1);
-      setTimeout(function(){
-        tx.commit(function(err){
-          if(i === n - 1)
-            db.get('k', function(err, val){
-              t.equal(val, n, n);
-            });
-        });
-      },0);
+    tx2.get('k', function(err, val){
+      tx2.put('k', val + 1);
+    });
+  });
+
+  tx.commit();
+
+  tx2.commit(function(err){
+    db.get('k', function(err, val){
+      t.equal(val, n, n);
     });
   });
 });

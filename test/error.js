@@ -29,15 +29,13 @@ tape('Defer Error',function(t){
     t.ok(err, 'error on txE commit');
   });
 
-  tx2.defer(function(cb){
-    tx2.get('k', function(err, value){
-      t.notOk(err, 'no error for tx2 get');
-      t.equal(value, 167, 'tx2 get equals 167');
+  tx2.get('k', function(err, value){
+    t.notOk(err, 'no error for tx2 get');
+    t.equal(value, 167, 'tx2 get equals 167');
 
-      tx2.put('k', value+1);
-      cb();
-    });
+    tx2.put('k', value+1);
   });
+
   tx2.commit(function(err){
     t.notOk(err, 'no error for tx2 commit');
 

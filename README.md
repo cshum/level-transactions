@@ -19,20 +19,19 @@ var transaction = require('level-async-transaction');
 transaction(db);
 
 var tx = db.transaction();
-
-tx.put('k', 167);
-setTimeout(function(){
-  tx.commit();
-},100);
-
 var tx2 = db.transaction();
 
 tx2.get('k', function(err, value){
   tx2.put('k', value + 1);
-  tx2.commit(function(){
-    db.get('k', function(err, data){
-      //data now equals to 168
-    });
+});
+
+//tx committed before tx2
+tx.put('k', 167);
+tx.commit();
+
+tx2.commit(function(err){
+  db.get('k', function(err, data){
+    //data now equals to 168
   });
 });
 ```
@@ -46,10 +45,10 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ##How it works
 Levelup API methods are asynchronous.
-level-async-transaction maintains a two-level async mutexes to ensure sequential ordering of operations:
+level-async-transaction maintains a two-level queue-mutex to ensure sequential ordering of operations:
 
-* 1st level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
-* 2nd level: operation mutex ensures sequential operations of `get`, `put`, `del` within the transaction.
+* 1st level: operation queue ensures sequential operations of `get`, `put`, `del` within the transaction.
+* 2nd level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
 
 Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
@@ -104,39 +103,9 @@ This method is optional as locks are automatically released in case of `commit()
 Utility function for deferring commit,
 which adds an asynchronous `task` function to the transaction queue. 
 
-This is useful when achieving "nested transaction" kind of control flow.
-
 `task` will be called with a callback argument, should be invoked when the task has finished.
 
 Callback with error argument will result in error on commit, hence rollback of transaction.
-
-```js
-var levelup = require('levelup');
-var db = levelup('./db',{ valueEncoding: 'json' });
-transactions(db);
-
-var tx = db.transaction();
-
-tx.put('k', 167);
-setTimeout(function(){
-  tx.commit();
-}, 100);
-
-var tx2 = db.transaction();
-
-//defer additional tasks
-tx2.defer(function(cb){
-  tx2.get('k', function(err, value){
-    tx2.put('k', value+1);
-    cb();
-  });
-});
-tx2.commit(function(err){
-  db.get('k', function(err, value){
-    //data now equals to 168
-  });
-});
-```
 
 ## License
 
