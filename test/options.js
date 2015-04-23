@@ -15,6 +15,12 @@ tape('Options',function(t){
   var tx = db.transaction({ valueEncoding: 'json' });
   var tx2 = db.transaction({ valueEncoding: 'json' });
 
+  tx.get('k', function(err, value){
+    t.notOk(value, 'no value for tx get');
+
+    tx.put('k', 167);
+  });
+
   tx2.get('k', function(err, value){
     t.notOk(err, 'no error for tx2 get');
     t.equal(value, 167, 'tx2 get equals 167');
@@ -22,11 +28,6 @@ tape('Options',function(t){
     tx2.put('k', value+1);
   });
 
-  tx.get('k', function(err, value){
-    t.notOk(value, 'no value for tx get');
-
-    tx.put('k', 167);
-  });
 
   tx.commit(function(err){
     t.notOk(err, 'no error for tx commit');
