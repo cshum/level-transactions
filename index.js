@@ -25,7 +25,7 @@ module.exports = function( db ){
 
   function pre(ctx, next, end){
     if(this._released)
-      return next(new Error('Transaction has already been released.'));
+      return next(this._error || new Error('Transaction released.'));
 
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
@@ -127,7 +127,10 @@ module.exports = function( db ){
   //release after rollback, commit
   function release(ctx, done){
     if(this._released)
-      return done(new Error('Transaction has already been released.'));
+      return done(this._error || new Error('Transaction released.'));
+
+    if(ctx.params && ctx.params.error)
+      this._error = ctx.params.error;
 
     _.each(this._taken, function(t, hash){
       mutex[hash].leave();
@@ -142,14 +145,14 @@ module.exports = function( db ){
 
     this._released = true;
 
-    done(null);
+    done(this._error);
   }
 
   ginga(Transaction.prototype)
     .define('get', params('key','opts?'), pre, lock, get)
     .define('put', params('key','value','opts?'), pre, lock, put)
     .define('del', params('key','opts?'), pre, lock, del)
-    .define('rollback', release)
+    .define('rollback', params('error?'), release)
     .define('commit', commit, release);
 
   db.transaction = db.transaction || function(options){

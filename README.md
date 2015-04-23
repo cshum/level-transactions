@@ -45,7 +45,7 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ##How it works
 Levelup API methods are asynchronous.
-level-async-transaction maintains a two-level queue-mutex to ensure sequential ordering of operations:
+level-async-transaction maintains queue + mutex control to ensure sequential ordering of operations:
 
 * 1st level: operation queue ensures sequential operations of `get`, `put`, `del` within the transaction.
 * 2nd level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
@@ -92,7 +92,7 @@ Uses levelup's `batch()` under the hood.
 
 Locks acquired during transaction will be released on both success or error.
 
-###tx.rollback([callback])
+###tx.rollback([error], [callback])
 
 `rollback()` releases locks acquired during transaction.
 

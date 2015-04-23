@@ -41,9 +41,4 @@ Queue.prototype.done = function(fn, err){
   return this;
 };
 
-Queue.prototype.error = function(err){
-  this._error = err;
-  return this;
-};
-
 module.exports = Queue;

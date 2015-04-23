@@ -64,11 +64,11 @@ tape('tx Error',function(t){
 
   txE.put('k', 0);
   txE.get('k', function(err, val){
-    txE.error(new Error());
+    txE.rollback('booom');
     txE.put('k', 0);
   });
   txE.commit(function(err){
-    t.ok(err, 'error on txE commit');
+    t.equal(err, 'booom', 'error on txE commit');
   });
 
   tx2.get('k', function(err, value){
