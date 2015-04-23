@@ -17,9 +17,11 @@ module.exports = function( db ){
     this._taken = {};
     this._map = {};
     this._batch = [];
-  }
 
-  queue(Transaction.prototype);
+    var q = queue();
+    this.defer = q.defer.bind(q);
+    this.start = q.start.bind(q);
+  }
 
   function pre(ctx, next, end){
     if(this._released)

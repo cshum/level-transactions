@@ -1,10 +1,8 @@
 function defer(fn){
-  this._q = this._q || [[]];
   this._q[this._q.length - 1].push(fn);
   return this;
 }
 function start(fn, err){
-  this._q = this._q || [[]];
   var self = this;
   var q = this._q[this._q.length - 1];
   //notFound err wont block queue
@@ -29,11 +27,9 @@ function start(fn, err){
 function Queue(q){
   if(!(this instanceof Queue))
     return new Queue(q);
-  q = q || {};
-
-  q.defer = defer;
-  q.start = start;
-
-  return q;
+  this._q = this._q || [[]];
 }
+Queue.prototype.defer = defer;
+Queue.prototype.start = start;
+
 module.exports = Queue;
