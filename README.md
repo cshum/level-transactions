@@ -1,6 +1,6 @@
 # level-async-transaction
 
-ACID Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
+Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
 Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 **This module is still under active development. Use with caution.**
@@ -54,8 +54,8 @@ level-async-transaction maintains a queue + mutex control to ensure sequential o
 Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ##Limitations
-* This assumes typical usage of LevelDB, which runs on a single node.js process. Usage in a distributed environment is currently not supported.
-* Only `get`, `put`, `del` methods available for transaction. "Range locks" for createReadStream is not yet implemented.
+* Mutex are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage in a distributed environment is not yet supported.
+* Only `get`, `put`, `del` methods available for transaction. "Range locks" for `createReadStream` is not yet implemented.
 
 ##API
 
@@ -63,73 +63,67 @@ Upon acquiring two-level mutex, operations are isolated within each transaction 
 
 Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) and [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
 
-###tx.get(key[, options][, callback])
+###tx.get(key, [options], [callback])
 
-`get()` fetches data from store or transaction object if lock acquired. 
+`get()` fetches data from store when lock acquired, 
+and callback with value or error.
 
-It acquires a lock for `key`, and callback with value or `NotFoundError` only when lock successfully acquired. 
+All errors except `NotFoundError` will cause a rollback, as non-exist item is not considered an error in transaction.
 
-###tx.put(key, value[, options][, callback])
+###tx.put(key, value, [options], [callback])
 
-`put()` inserts data into transaction object, 
-and will only be inserted into store upon successful commit. 
+`put()` inserts/updates data into transaction object when lock acquired, 
+will only be applied into store upon successful commit. 
+Any errors will cause a rollback.
 
-It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
-
-###tx.del(key[, options][, callback])
+###tx.del(key, [options], [callback])
 
 `del()` removes data from transaction object, 
-and will only be removed from store upon successful commit. 
+will only be applied upon successful commit. 
+Any errors will cause a rollback.
 
-It acquires lock for the `key`, callback only when lock acquired. `callback` function is optional as `commit()` handles all the asynchronous logic.
-
-###tx.commit([callback])
-
-`commit()` wait for all locks to be acquired, then batches data from transaction object into the store.
-
-Upon successful commit, operations will be written to store atomically. 
-Rollback on error.
-Uses levelup's `batch()` under the hood.
-
-Locks acquired during transaction will be released on both success or error.
-
-###tx.rollback([error], [callback])
-
-`rollback()` releases locks acquired during transaction.
-
-This method is optional as locks are automatically released in case of `commit()` error.
-
-```js
-tx.get('foo', function(err, val){
-  if(val) return tx.rollback(new Error('foo existed'));
-
-  tx.put('foo','bar');
-});
-```
-
-###tx.defer(task)
+###tx.defer(fn)
 
 Utility function for deferring commit,
-which adds an asynchronous `task` function to the transaction queue. 
+which adds an asynchronous `fn` function to the transaction queue. 
 
-`task` will be called with a callback argument, should be invoked when the task has finished.
+`fn` is provided with a `callback` function, should be invoked when the task has finished.
 
 Callback with error argument will result in rollback of transaction.
 
 ```js
 tx.get('k', function(err, value){
-  tx.defer(function(cb){
-    someAsyncTask(value, function(err, result){
-      if(err){
-        cb(err);
-      }else{
-        tx.put('k', result);
-        cb();
-      }
+  tx.defer(function(callback){
+    asyncTask(value, function(err, result){
+      if(err)
+        return callback(err);
+      tx.put('k', result);
+      callback();
     });
   });
 });
 ```
+
+###tx.commit([callback])
+
+`commit()` commits operations and releases locks acquired during transaction.
+
+Uses levelup's `batch()` under the hood.
+Changes are written to store atomically upon successful commit, or discarded upon error.
+
+
+###tx.rollback([error], [callback])
+
+`rollback()` releases locks acquired during transaction. Can optionally specify `error`.
+
+```js
+tx.get('foo', function(err, val){
+  if(val) 
+    return tx.rollback(new Error('foo existed'));
+  tx.put('foo','bar');
+});
+```
+
 
 ## License
 

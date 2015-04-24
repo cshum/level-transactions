@@ -26,7 +26,7 @@ Queue.prototype.defer = function(fn){
   return this;
 };
 
-Queue.prototype.done = function(fn, err){
+Queue.prototype.done = function(fn){
   var self = this;
   var sema = this._q[0];
   sema.take(function(){
