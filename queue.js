@@ -8,10 +8,6 @@ function Queue(){
 Queue.prototype.defer = function(fn){
   var self = this;
   var sema = this._q[this._q.length - 1];
-  function callback(){
-    self._q.pop();
-    sema.leave();
-  }
   sema.take(function(){
     if(self._error)
       return sema.leave();
