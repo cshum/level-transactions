@@ -7,18 +7,25 @@ var _         = require('underscore'),
 module.exports = function( db ){
   var mutex = {};
 
-  function Transaction(options){
+  function Transaction(opts){
     this.db = db;
-    this.options = options;
+    this.options = opts || {};
 
     this._released = false;
 
-    this._wait = {};
     this._taken = {};
     this._map = {};
     this._batch = [];
     
     Queue.call(this);
+
+    if(typeof this.options.timeout === 'number'){
+      var self = this;
+      setTimeout(function(){
+        if(!self._released)
+          self.rollback(new Error('Transaction timeout.'));
+      }, this.options.timeout);
+    }
   }
 
   _.extend(Transaction.prototype, Queue.prototype);
@@ -34,7 +41,9 @@ module.exports = function( db ){
 
     //key + sublevel prefix hash
     ctx.hash = JSON.stringify(
-      ctx.prefix ? [ctx.prefix.prefix(), ctx.params.key] : ctx.params.key
+      ctx.prefix ? 
+      [ctx.prefix.prefix(), ctx.params.key] : 
+      ctx.params.key
     );
 
     this.defer(function(cb){
@@ -44,14 +53,14 @@ module.exports = function( db ){
   }
 
   function lock(ctx, next, end){
-    var self = this;
-
     if(this._released)
       return next(this._error || new Error('Transaction released.'));
 
-    if(!this._wait[ctx.hash]){
-      //gain mutexly exclusive access to transaction
-      
+    if(this._taken[ctx.hash]){
+      next();
+    }else{
+      //gain mutually exclusive access to transaction
+      var self = this;
       var mu = mutex[ctx.hash] = mutex[ctx.hash] || semaphore(1);
       mu.take(function(){
         if(self._released){
@@ -61,10 +70,7 @@ module.exports = function( db ){
         self._taken[ctx.hash] = true;
         next();
       });
-      this._wait[ctx.hash] = true;
     }
-    if(this._taken[ctx.hash])
-      next();
   }
 
   function get(ctx, done){
@@ -138,7 +144,6 @@ module.exports = function( db ){
         delete mutex[hash];
     });
 
-    delete this._wait;
     delete this._taken;
     delete this._map;
     delete this._batch;
