@@ -1,7 +1,7 @@
 # level-async-transaction
 
-Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) and [level-sublevel](https://github.com/dominictarr/level-sublevel). 
-Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for levelup. Compatible with level-sublevel prefix.
+ACID Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
+Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 **This module is still under active development. Use with caution.**
 
@@ -26,27 +26,29 @@ tx2.get('k', function(err, value){
   tx2.put('k', value + 1);
 });
 
-tx.commit();
-
-tx2.commit(function(err){
+tx.commit(function(){
   db.get('k', function(err, data){
-    //data now equals to 168
+    //tx commit: data equals to 167
+    tx2.commit(function(){
+      db.get('k', function(err, data){
+        //tx2 commit: data equals to 168
+      });
+    });
   });
 });
+
 ```
 
 ##Why LevelDB
 
-Despite being a simple key-value store, LevelDB supports atomic batched operations. This is an important primitive for building solid database functionality with inherent consistency.
+LevelDB supports atomic batched operations. This is an important primitive for building solid database functionality with inherent consistency.
 MongoDB, for example, does not hold such property for bulk operations, hence a wrapper like this would not be possible.
-
-`level-async-transaction` gives a foundation for building an asynchronous, transactional data store with LevelDB on Node.js.
 
 ##How it works
 Levelup API methods are asynchronous.
-level-async-transaction maintains a queue + mutex control to ensure sequential ordering of operations:
+level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations:
 
-* 1st level: operation queue ensures sequential operations of `get`, `put`, `del` within the transaction.
+* 1st level: operation queue ensures sequential operations of `get`, `put`, `del`, `defer` within the transaction.
 * 2nd level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
 
 Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
@@ -97,6 +99,14 @@ Locks acquired during transaction will be released on both success or error.
 
 This method is optional as locks are automatically released in case of `commit()` error.
 
+```js
+tx.get('foo', function(err, val){
+  if(val) return tx.rollback(new Error('foo existed'));
+
+  tx.put('foo','bar');
+});
+```
+
 ###tx.defer(task)
 
 Utility function for deferring commit,
@@ -104,7 +114,22 @@ which adds an asynchronous `task` function to the transaction queue.
 
 `task` will be called with a callback argument, should be invoked when the task has finished.
 
-Callback with error argument will result in error on commit, hence rollback of transaction.
+Callback with error argument will result in rollback of transaction.
+
+```js
+tx.get('k', function(err, value){
+  tx.defer(function(cb){
+    someAsyncTask(value, function(err, result){
+      if(err){
+        cb(err);
+      }else{
+        tx.put('k', result);
+        cb();
+      }
+    });
+  });
+});
+```
 
 ## License
 
