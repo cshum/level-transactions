@@ -22,13 +22,13 @@ var tx2 = db.transaction();
 
 tx.put('k', 167);
 
-tx2.get('k', function(err, value){
-  tx2.put('k', value + 1);
-});
-
 tx.commit(function(){
+  tx2.get('k', function(err, value){
+    tx2.put('k', value + 1);
+  });
   db.get('k', function(err, data){
     //tx commit: data equals to 167
+
     tx2.commit(function(){
       db.get('k', function(err, data){
         //tx2 commit: data equals to 168
