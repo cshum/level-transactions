@@ -3,8 +3,6 @@
 Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
 Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
-**This module is still under active development. Use with caution.**
-
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
 ```bash
@@ -22,11 +20,12 @@ var tx2 = db.transaction();
 
 tx.put('k', 167);
 
-tx2.get('k', function(err, value){
-  tx2.put('k', value + 1);
-});
-
 tx.commit(function(){
+  tx2.get('k', function(err, value){
+    //tx2 increments value
+    tx2.put('k', value + 1);
+  });
+
   db.get('k', function(err, data){
     //tx commit: data equals to 167
     tx2.commit(function(){
@@ -39,12 +38,12 @@ tx.commit(function(){
 
 ```
 
-##Why LevelDB
+###Why LevelDB
 
 LevelDB supports atomic batched operations. This is an important primitive for building solid database functionality with inherent consistency.
 MongoDB, for example, does not hold such property for bulk operations, hence a wrapper like this would not be possible.
 
-##How it works
+###How it works
 Levelup API methods are asynchronous.
 level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations:
 
@@ -53,7 +52,7 @@ level-async-transaction maintains a queue + mutex control to ensure sequential o
 
 Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
-##Limitations
+###Limitations
 * Mutex are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage in a distributed environment is not yet supported.
 * Only `get`, `put`, `del` methods available for transaction. "Range locks" for `createReadStream` is not yet implemented.
 
