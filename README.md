@@ -1,7 +1,7 @@
 # level-async-transaction
 
 Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
-Uses Two-Phase Commit approach, applies locks on per key basis, atomic commits and rollbacks for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
+Uses Two-Phase Commit approach, apply locks on a per key basis, atomic commits for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
 
@@ -44,17 +44,17 @@ LevelDB supports atomic batched operations. This is an important primitive for b
 MongoDB, for example, does not hold such property for bulk operations, hence a wrapper like this would not be possible.
 
 ###How it works
-Levelup API methods are asynchronous.
-level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations:
+LevelDB methods are asynchronous.
+level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations on a per key basis:
 
-* 1st level: operation queue ensures sequential operations of `get`, `put`, `del`, `defer` within the transaction.
-* 2nd level: transaction mutex ensures mutually exclusive access of key + sublevel prefix during lock phase of transaction.
+* 1st level: Operation queue ensures sequential `get`, `put`, `del`, `defer` within a transaction.
+* 2nd level: Mutexes ensures mutually exclusive access of key + sublevel prefix during lock phase of a transaction.
 
-Upon acquiring two-level mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
+Upon acquiring queue + mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ###Limitations
-* Mutex are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage in a distributed environment is not yet supported.
-* Only `get`, `put`, `del` methods available for transaction. "Range locks" for `createReadStream` is not yet implemented.
+* Mutexes are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
+* Only `get`, `put`, `del` methods are available for transaction. "Range locks" with `createReadStream` is not yet implemented.
 
 ##API
 
@@ -105,7 +105,7 @@ tx.get('k', function(err, value){
 
 ###tx.commit([callback])
 
-`commit()` commits operations and releases locks acquired during transaction.
+`commit()` commit operations and release locks acquired during transaction.
 
 Uses levelup's `batch()` under the hood.
 Changes are written to store atomically upon successful commit, or discarded upon error.
@@ -113,7 +113,7 @@ Changes are written to store atomically upon successful commit, or discarded upo
 
 ###tx.rollback([error], [callback])
 
-`rollback()` releases locks acquired during transaction. Can optionally specify `error`.
+`rollback()` release locks acquired during transaction. Can optionally specify `error`.
 
 ```js
 tx.get('foo', function(err, val){
@@ -123,6 +123,9 @@ tx.get('foo', function(err, val){
 });
 ```
 
+###tx.release([error], [callback])
+
+An alias for the `rollback()` method.
 
 ## License
 
