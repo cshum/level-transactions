@@ -158,6 +158,7 @@ module.exports = function( db ){
     .define('put', params('key','value','opts?'), pre, lock, put)
     .define('del', params('key','opts?'), pre, lock, del)
     .define('rollback', params('error?'), release)
+    .define('release', params('error?'), release)
     .define('commit', commit, release);
 
   db.transaction = db.transaction || function(options){
