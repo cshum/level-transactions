@@ -3,7 +3,7 @@ var tape         = require('tape'),
     down         = require('memdown'),
     transactions = require('../');
 
-tape('Defer lock',function(t){
+tape('Defer',function(t){
   t.plan(5);
 
   var db = levelup('test', {

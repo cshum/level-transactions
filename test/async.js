@@ -3,7 +3,7 @@ var tape         = require('tape'),
     down         = require('memdown'),
     transactions = require('../');
 
-tape('Async Lock',function(t){
+tape('Async',function(t){
   t.plan(2);
 
   var db = levelup('test', {
@@ -31,7 +31,7 @@ tape('Async Lock',function(t){
   });
 });
 
-tape('Async Lock',function(t){
+tape('Async commit',function(t){
   t.plan(2);
 
   var db = levelup('test', {

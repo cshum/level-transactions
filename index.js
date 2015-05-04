@@ -3,6 +3,7 @@ var _            = require('underscore'),
     ginga        = require('ginga'),
     semaphore    = require('./semaphore'),
     Queue        = require('./queue'),
+    error        = require('./error'),
     params       = ginga.params;
 
 var defaults = {
@@ -27,7 +28,7 @@ module.exports = function(db, _opts){
 
     var self = this;
     this._timeout = setTimeout(
-      this.release.bind(this, new Error('Transaction timeout.')),
+      this.release.bind(this, error.TX_TIMEOUT),
       this.options.ttl
     );
   }
@@ -37,7 +38,7 @@ module.exports = function(db, _opts){
 
   function pre(ctx, next, end){
     if(this._released)
-      return next(this._error || new Error('Transaction released.'));
+      return next(this._error || error.TX_RELEASED);
 
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
@@ -118,7 +119,7 @@ module.exports = function(db, _opts){
 
   function commit(ctx, next, end){
     if(this._released)
-      return next(this._error || new Error('Transaction released.'));
+      return next(this._error || error.TX_RELEASED);
 
     var self = this;
     var done = false;
@@ -144,7 +145,7 @@ module.exports = function(db, _opts){
   //release after rollback, commit
   function release(ctx, done){
     if(this._released)
-      return done(this._error || new Error('Transaction released.'));
+      return done(this._error || error.TX_RELEASED);
 
     clearTimeout(this._timeout);
 
