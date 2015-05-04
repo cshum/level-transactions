@@ -47,7 +47,7 @@ tape('Defer Error',function(t){
 });
 
 tape('tx Error',function(t){
-  t.plan(4);
+  t.plan(5);
 
   var db = levelup('test', {
     db: down,

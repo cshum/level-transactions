@@ -1,8 +1,9 @@
-var _         = require('underscore'),
-    ginga     = require('ginga'),
-    semaphore = require('./semaphore'),
-    Queue     = require('./queue'),
-    params    = ginga.params;
+var _            = require('underscore'),
+    EventEmitter = require('events').EventEmitter,
+    ginga        = require('ginga'),
+    semaphore    = require('./semaphore'),
+    Queue        = require('./queue'),
+    params       = ginga.params;
 
 var defaults = {
   ttl: 20 * 1000
@@ -22,6 +23,7 @@ module.exports = function(db, _opts){
     this._batch = [];
     
     Queue.call(this);
+    EventEmitter.call(this);
 
     var self = this;
     this._timeout = setTimeout(
@@ -31,8 +33,12 @@ module.exports = function(db, _opts){
   }
 
   _.extend(Transaction.prototype, Queue.prototype);
+  _.extend(Transaction.prototype, EventEmitter.prototype);
 
   function pre(ctx, next, end){
+    if(this._released)
+      return next(this._error || new Error('Transaction released.'));
+
     //options object
     ctx.options = _.defaults({}, ctx.params.opts, this.options);
 
@@ -55,9 +61,6 @@ module.exports = function(db, _opts){
   }
 
   function lock(ctx, next, end){
-    if(this._released)
-      return next(this._error || new Error('Transaction released.'));
-
     if(this._taken[ctx.hash]){
       next();
     }else{
@@ -115,11 +118,15 @@ module.exports = function(db, _opts){
 
   function commit(ctx, next, end){
     if(this._released)
-      return done(this._error || new Error('Transaction released.'));
+      return next(this._error || new Error('Transaction released.'));
 
     var self = this;
-
+    var done = false;
+    this.on('release', function(err){
+      if(!done) next(err);
+    });
     this.done(function(err){
+      done = true;
       if(err)
         return next(err);
       db.batch(self._batch, function(err, res){
@@ -127,7 +134,6 @@ module.exports = function(db, _opts){
         else next();
       });
     });
-
     end(function(err){
       //rollback on commit error
       if(err)
@@ -156,7 +162,7 @@ module.exports = function(db, _opts){
     delete this._batch;
 
     this._released = true;
-
+    this.emit('release', this._error);
     done(this._error);
   }
 
