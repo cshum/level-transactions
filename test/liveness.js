@@ -16,11 +16,11 @@ tape('Liveness',function(t){
   var tx2 = db.transaction();
 
   tx.get('a', function(err, val){
-    tx.put('b', val + 1);
+    tx.put('b', 167);
   });
 
   tx2.get('b', function(err, val){
-    tx2.put('a', val+1);
+    tx2.put('a', 167);
   });
 
   tx.commit(function(err){
