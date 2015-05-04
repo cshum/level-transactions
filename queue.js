@@ -30,7 +30,7 @@ Queue.prototype.done = function(fn){
   var self = this;
   var sema = this._q[0];
   sema.take(function(){
-    self._q.pop();
+    // self._q.pop();
     fn(self._error);
     sema.leave();
   });

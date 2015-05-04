@@ -4,12 +4,16 @@ var _         = require('underscore'),
     Queue     = require('./queue'),
     params    = ginga.params;
 
-module.exports = function( db ){
+var defaults = {
+  ttl: 20 * 1000
+};
+
+module.exports = function(db, _opts){
   var mutex = {};
 
   function Transaction(opts){
     this.db = db;
-    this.options = opts || {};
+    this.options = _.defaults(opts || {}, _opts, defaults);
 
     this._released = false;
 
@@ -19,13 +23,11 @@ module.exports = function( db ){
     
     Queue.call(this);
 
-    if(typeof this.options.timeout === 'number'){
-      var self = this;
-      setTimeout(function(){
-        if(!self._released)
-          self.rollback(new Error('Transaction timeout.'));
-      }, this.options.timeout);
-    }
+    var self = this;
+    this._timeout = setTimeout(
+      this.release.bind(this, new Error('Transaction timeout.')),
+      this.options.ttl
+    );
   }
 
   _.extend(Transaction.prototype, Queue.prototype);
@@ -112,6 +114,9 @@ module.exports = function( db ){
   }
 
   function commit(ctx, next, end){
+    if(this._released)
+      return done(this._error || new Error('Transaction released.'));
+
     var self = this;
 
     this.done(function(err){
@@ -134,6 +139,8 @@ module.exports = function( db ){
   function release(ctx, done){
     if(this._released)
       return done(this._error || new Error('Transaction released.'));
+
+    clearTimeout(this._timeout);
 
     if(ctx.params && ctx.params.error)
       this._error = ctx.params.error;
