@@ -1,6 +1,6 @@
 {
   "name": "level-async-transaction",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Transaction layer for LevelDB and level-sublevel.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
