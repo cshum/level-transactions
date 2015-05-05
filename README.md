@@ -47,8 +47,8 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 LevelDB methods are asynchronous.
 level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations on a per key basis:
 
-* 1st level: Operation queue ensures sequential `get`, `put`, `del`, `defer` within a transaction.
-* 2nd level: Mutexes ensures mutually exclusive access of key + sublevel prefix during lock phase of a transaction.
+1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
+2. Prefix + key hashed mutex for mutually exclusive operation during lock phase of a transaction.
 
 Upon acquiring queue + mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
@@ -60,7 +60,9 @@ Upon acquiring queue + mutex, operations are isolated within each transaction ob
 
 ###db.transaction([options])
 
-Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) and [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
+Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
+* `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
+* `ttl`: TTL of each transaction object for liveness. Default to 20 seconds.
 
 ###tx.get(key, [options], [callback])
 
@@ -115,17 +117,6 @@ Changes are written to store atomically upon successful commit, or discarded upo
 
 `rollback()` release locks acquired during transaction. Can optionally specify `error`.
 
-```js
-tx.get('foo', function(err, val){
-  if(val) 
-    return tx.rollback(new Error('foo existed'));
-  tx.put('foo','bar');
-});
-```
-
-###tx.release([error], [callback])
-
-An alias for the `rollback()` method.
 
 ## License
 
