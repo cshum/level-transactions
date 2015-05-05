@@ -1,6 +1,6 @@
 {
   "name": "level-async-transaction",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Transaction layer for LevelDB and level-sublevel.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
@@ -20,13 +20,13 @@
   "license": "MIT",
   "dependencies": {
     "ginga": "^0.1.7",
-    "underscore": "^1.7.0"
+    "extend": "^2.0.1"
   },
   "devDependencies": {
     "tape": "^3.0.3",
     "memdown": "^1.0.0",
     "levelup": "^0.19.0",
     "level-sublevel": "^6.4.5",
-    "jsondown": "^0.1.1"
+    "underscore": "^1.8.3"
   }
 }

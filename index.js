@@ -1,4 +1,4 @@
-var _            = require('underscore'),
+var extend       = require('extend'),
     EventEmitter = require('events').EventEmitter,
     ginga        = require('ginga'),
     semaphore    = require('./semaphore'),
@@ -15,7 +15,7 @@ module.exports = function(db, _opts){
 
   function Transaction(opts){
     this.db = db;
-    this.options = _.defaults(opts || {}, _opts, defaults);
+    this.options = extend({}, defaults, _opts || {}, opts || {});
 
     this._released = false;
 
@@ -33,15 +33,18 @@ module.exports = function(db, _opts){
     );
   }
 
-  _.extend(Transaction.prototype, Queue.prototype);
-  _.extend(Transaction.prototype, EventEmitter.prototype);
+  extend(
+    Transaction.prototype, 
+    Queue.prototype, 
+    EventEmitter.prototype
+  );
 
   function pre(ctx, next, end){
     if(this._released)
       return next(this._error || error.TX_RELEASED);
 
     //options object
-    ctx.options = _.defaults({}, ctx.params.opts, this.options);
+    ctx.options = extend({}, this.options, ctx.params.opts || {});
 
     //check sublevel
     if(ctx.options && ctx.options.prefix && 
@@ -86,16 +89,14 @@ module.exports = function(db, _opts){
     }
     var self = this;
 
-    (ctx.prefix || db).get(ctx.params.key, _.defaults(
-      {}, ctx.params.opts, this.options
-    ), function(err, val){
+    (ctx.prefix || db).get(ctx.params.key, ctx.options, function(err, val){
       self._map[ctx.hash] = val;
       done(err, val);
     });
   }
 
   function put(ctx, done){
-    this._batch.push(_.defaults({
+    this._batch.push(extend({
       type: 'put',
       key: ctx.params.key,
       value: ctx.params.value
@@ -107,7 +108,7 @@ module.exports = function(db, _opts){
   }
 
   function del(ctx, done){
-    this._batch.push(_.defaults({
+    this._batch.push(extend({
       type: 'del',
       key: ctx.params.key
     }, ctx.options));
@@ -152,11 +153,11 @@ module.exports = function(db, _opts){
     if(ctx.params && ctx.params.error)
       this._error = ctx.params.error;
 
-    _.each(this._taken, function(t, hash){
+    for(var hash in this._taken){
       mutex[hash].leave();
       if(mutex[hash].empty())
         delete mutex[hash];
-    });
+    }
 
     delete this._taken;
     delete this._map;
