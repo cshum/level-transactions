@@ -62,7 +62,7 @@ Upon acquiring queue + mutex, operations are isolated within each transaction ob
 
 Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
 * `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
-* `ttl`: TTL of each transaction object for liveness. Default to 20 seconds.
+* `ttl`: TTL (milliseconds) of each transaction object for liveness. Default to 20 seconds.
 
 ###tx.get(key, [options], [callback])
 
