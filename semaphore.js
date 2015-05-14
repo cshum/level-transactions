@@ -1,3 +1,5 @@
+var setImmediate = global.setImmediate || process.nextTick;
+
 function Semaphpre(n){
   if(!(this instanceof Semaphpre))
     return new Semaphpre(n);
