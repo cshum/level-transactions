@@ -1,7 +1,7 @@
 {
   "name": "level-async-transaction",
-  "version": "0.2.10",
-  "description": "Transaction layer for LevelDB and level-sublevel.",
+  "version": "0.3.0",
+  "description": "2PL transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
     "test": "set -e; for t in test/*.js; do node $t; done"
