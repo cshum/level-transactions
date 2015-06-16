@@ -2,6 +2,7 @@ var test        = require('tape'),
     levelup     = require('levelup'),
     sublevel    = require('level-sublevel'),
     down        = require('memdown'),
+    _           = require('underscore'),
     transaction = require('../');
 
 function newDB(){
@@ -53,6 +54,26 @@ test('CRUD, isolation and defer',function(t){
       });
     });
   });
+});
+test('Parallelism',function(t){
+  t.plan(1);
+
+  var db = newDB();
+  transaction(db);
+
+  function inc(){
+    var tx = db.transaction();
+    tx.get('k', function(err, val){
+      tx.put('k', (val || 0) + 1);
+    });
+    tx.commit(function(){
+      db.get('k', function(err, val){
+        if(val === 167)
+          t.pass('Parallel increment');
+      });
+    });
+  }
+  _.range(167).forEach(inc);
 });
 
 test('Liveness',function(t){
