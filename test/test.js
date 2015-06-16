@@ -58,22 +58,27 @@ test('CRUD, isolation and defer',function(t){
 test('Parallelism',function(t){
   t.plan(1);
 
+  var n = 100;
+
   var db = newDB();
   transaction(db);
 
   function inc(){
     var tx = db.transaction();
-    tx.get('k', function(err, val){
-      tx.put('k', (val || 0) + 1);
+    tx.defer(function(cb){
+      tx.get('k', function(err, val){
+        tx.put('k', (val || 0) + 1);
+        setTimeout(cb, 10);
+      });
     });
     tx.commit(function(){
       db.get('k', function(err, val){
-        if(val === 167)
+        if(val === n)
           t.pass('Parallel increment');
       });
     });
   }
-  _.range(167).forEach(inc);
+  _.range(n).forEach(inc);
 });
 
 test('Liveness',function(t){
