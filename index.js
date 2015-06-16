@@ -96,6 +96,8 @@ module.exports = function(db, _opts){
 
     var self = this;
     (ctx.prefix || db).get(ctx.params.key, ctx.options, function(err, val){
+      if(self._released) 
+        return;
       if(err && err.notFound)
         self._notFound[ctx.hash] = true;
       self._map[ctx.hash] = val;
