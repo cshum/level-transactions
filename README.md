@@ -50,7 +50,7 @@ level-async-transaction maintains a queue + mutex control to ensure sequential o
 1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
 2. Prefix + key hashed mutex for mutually exclusive operation during lock phase of a transaction.
 
-Upon acquiring queue + mutex, operations are isolated within each transaction object. Results will only persist upon successful commit, using `batch()` of LevelDB.
+Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ###Limitations
 * Mutexes are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
