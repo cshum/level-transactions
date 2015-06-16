@@ -2,6 +2,7 @@ var extend       = require('extend'),
     EventEmitter = require('events').EventEmitter,
     ginga        = require('ginga'),
     semaphore    = require('./semaphore'),
+    levelErrors  = require('level-errors'),
     Queue        = require('./queue'),
     error        = require('./error'),
     params       = ginga.params;
@@ -15,12 +16,13 @@ module.exports = function(db, _opts){
 
   function Transaction(opts){
     this.db = db;
-    this.options = extend({}, defaults, _opts || {}, opts || {});
+    this.options = extend({}, defaults, _opts, opts);
 
     this._released = false;
 
     this._taken = {};
     this._map = {};
+    this._notFound = {};
     this._batch = [];
     
     Queue.call(this);
@@ -43,8 +45,14 @@ module.exports = function(db, _opts){
     if(this._released)
       return next(this._error || error.TX_RELEASED);
 
+    next();
+  }
+
+  function lock(ctx, next, end){
+    var self = this;
+
     //options object
-    ctx.options = extend({}, this.options, ctx.params.opts || {});
+    ctx.options = extend({}, this.options, ctx.params.opts);
 
     //check sublevel
     if(ctx.options && ctx.options.prefix && 
@@ -59,37 +67,36 @@ module.exports = function(db, _opts){
     );
 
     this.defer(function(cb){
-      next();
+      if(self._taken[ctx.hash]){
+        next();
+      }else{
+        //gain mutually exclusive access to transaction
+        var mu = mutex[ctx.hash] = mutex[ctx.hash] || semaphore(1);
+        mu.take(function(){
+          if(self._released){
+            mu.leave();
+            return;
+          }
+          self._taken[ctx.hash] = true;
+          next();
+        });
+      }
+
       end(cb);
     });
-  }
 
-  function lock(ctx, next, end){
-    if(this._taken[ctx.hash]){
-      next();
-    }else{
-      //gain mutually exclusive access to transaction
-      var self = this;
-      var mu = mutex[ctx.hash] = mutex[ctx.hash] || semaphore(1);
-      mu.take(function(){
-        if(self._released){
-          mu.leave();
-          return;
-        }
-        self._taken[ctx.hash] = true;
-        next();
-      });
-    }
   }
 
   function get(ctx, done){
-    if(ctx.hash in this._map){
-      done(null, this._map[ctx.hash]);
-      return;
-    }
-    var self = this;
+    if(this._notFound[ctx.hash])
+      return done(levelErrors.NotFoundError);
+    if(ctx.hash in this._map)
+      return done(null, this._map[ctx.hash]);
 
+    var self = this;
     (ctx.prefix || db).get(ctx.params.key, ctx.options, function(err, val){
+      if(err && err.notFound)
+        self._notFound[ctx.hash] = true;
       self._map[ctx.hash] = val;
       done(err, val);
     });
@@ -103,6 +110,9 @@ module.exports = function(db, _opts){
     }, ctx.options));
 
     this._map[ctx.hash] = ctx.params.value;
+    delete this._notFound[ctx.hash];
+
+    this.emit('put', ctx.params.key, ctx.params.value);
 
     done(null);
   }
@@ -114,14 +124,14 @@ module.exports = function(db, _opts){
     }, ctx.options));
 
     this._map[ctx.hash] = undefined;
+    this._notFound[ctx.hash] = true;
+
+    this.emit('del', ctx.params.key);
 
     done(null);
   }
 
   function commit(ctx, next, end){
-    if(this._released)
-      return next(this._error || error.TX_RELEASED);
-
     var self = this;
     var done = false;
     this.on('release', function(err){
@@ -145,9 +155,6 @@ module.exports = function(db, _opts){
 
   //release after rollback, commit
   function release(ctx, done){
-    if(this._released)
-      return done(this._error || error.TX_RELEASED);
-
     clearTimeout(this._timeout);
 
     if(ctx.params && ctx.params.error)
@@ -172,9 +179,9 @@ module.exports = function(db, _opts){
     .define('get', params('key','opts?'), pre, lock, get)
     .define('put', params('key','value','opts?'), pre, lock, put)
     .define('del', params('key','opts?'), pre, lock, del)
-    .define('rollback', params('error?'), release)
-    .define('release', params('error?'), release)
-    .define('commit', commit, release);
+    .define('rollback', params('error?'), pre, release)
+    .define('release', params('error?'), pre, release)
+    .define('commit', pre, commit, release);
 
   db.transaction = db.transaction || function(options){
     return new Transaction(options);

@@ -19,8 +19,9 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "extend": "^2.0.1",
     "ginga": "^0.1.7",
-    "extend": "^2.0.1"
+    "level-errors": "^1.0.3"
   },
   "devDependencies": {
     "tape": "^3.0.3",
