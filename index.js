@@ -28,7 +28,6 @@ module.exports = function(db, _opts){
     Queue.call(this);
     EventEmitter.call(this);
 
-    var self = this;
     this._timeout = setTimeout(
       this.release.bind(this, error.TX_TIMEOUT),
       this.options.ttl
@@ -89,7 +88,9 @@ module.exports = function(db, _opts){
 
   function get(ctx, done){
     if(this._notFound[ctx.hash])
-      return done(levelErrors.NotFoundError);
+      return done(new levelErrors.NotFoundError(
+        'Key not found in transaction [' + ctx.params.key + ']'
+      ));
     if(ctx.hash in this._map)
       return done(null, this._map[ctx.hash]);
 
