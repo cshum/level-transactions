@@ -1,6 +1,6 @@
 {
   "name": "level-async-transaction",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "2PL transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
