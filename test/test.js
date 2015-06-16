@@ -1,14 +1,12 @@
 var test        = require('tape'),
     levelup     = require('levelup'),
     sublevel    = require('level-sublevel'),
-    down        = require('memdown'),
+    memdown     = require('memdown'),
     _           = require('underscore'),
     transaction = require('../');
 
 function newDB(){
-  return sublevel(
-    levelup({}, { db: down, valueEncoding: 'json' })
-  );
+  return sublevel( levelup({}, { db: memdown, valueEncoding: 'json' }) );
 }
 
 test('CRUD, isolation and defer',function(t){
@@ -150,4 +148,28 @@ test('SubLevel',function(t){
 
   inc(db.sublevel('sub'), 167);
   inc(db.sublevel('sub2'), 199);
+});
+
+test('Defer error', function(t){
+  t.plan(3);
+
+  var db = newDB();
+  transaction(db);
+
+  var tx = db.transaction();
+  tx.put('foo', 'bar', function(err){
+    t.notOk(err, 'no error before booom');
+  });
+  tx.defer(function(cb){
+    setTimeout(cb.bind(null, 'booom'), 10);
+  });
+  tx.put('167', 199, function(err){
+    t.error('should not continue after booom');
+  });
+  tx.commit(function(err){
+    t.equal(err, 'booom', 'defer error');
+    db.get('foo', function(err){
+      t.ok(err.notFound, 'value not committed');
+    });
+  });
 });

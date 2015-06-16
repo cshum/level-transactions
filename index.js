@@ -171,6 +171,7 @@ module.exports = function(db, _opts){
     delete this._taken;
     delete this._map;
     delete this._batch;
+    delete this._notFound;
 
     this._released = true;
     this.emit('release', this._error);
