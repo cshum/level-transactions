@@ -134,6 +134,12 @@ module.exports = function(db, _opts){
   function commit(ctx, next, end){
     var self = this;
     var done = false;
+
+    end(function(err){
+      //rollback on commit error
+      if(err)
+        self.rollback();
+    });
     this.on('release', function(err){
       if(!done) next(err);
     });
@@ -145,11 +151,6 @@ module.exports = function(db, _opts){
         if(err) next(err); 
         else next();
       });
-    });
-    end(function(err){
-      //rollback on commit error
-      if(err)
-        self.rollback();
     });
   }
 
