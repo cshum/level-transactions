@@ -1,13 +1,16 @@
-var tape        = require('tape'),
+var test        = require('tape'),
     levelup     = require('levelup'),
+    sublevel    = require('level-sublevel'),
     down        = require('memdown'),
     transaction = require('../');
 
 function newDB(){
-  return levelup({}, { db: down, valueEncoding: 'json' });
+  return sublevel(
+    levelup({}, { db: down, valueEncoding: 'json' })
+  );
 }
 
-tape('CRUD, isolation and defer',function(t){
+test('CRUD, isolation and defer',function(t){
   t.plan(7);
 
   var db = newDB();
@@ -52,7 +55,7 @@ tape('CRUD, isolation and defer',function(t){
   });
 });
 
-tape('Liveness',function(t){
+test('Liveness',function(t){
   t.plan(4);
 
   var db = newDB();
@@ -87,4 +90,38 @@ tape('Liveness',function(t){
       t.notOk(value, 'tx2 no put');
     });
   });
+});
+
+test('SubLevel',function(t){
+  t.plan(8);
+
+  var db = newDB();
+  transaction(db);
+
+  function inc(sub, n){
+    var tx = db.transaction({ prefix: sub });
+    var tx2 = db.transaction({ prefix: sub });
+
+    tx.put('k', n);
+    sub.get('k', function(err, data){
+      t.ok(err.notFound, 'notFound error');
+      t.notOk(data, 'value not exists');
+      tx.commit(function(){
+        tx2.get('k', function(err, value){
+          tx2.put('k', value + 1);
+        });
+        sub.get('k', function(err, data){
+          t.equal(data, n, 'tx commit, value equals tx put');
+          tx2.commit(function(err){
+            sub.get('k', function(err, data){
+              t.equal(data, n + 1, 'tx2 commit, value equals tx2 increment');
+            });
+          });
+        });
+      });
+    });
+  }
+
+  inc(db.sublevel('sub'), 167);
+  inc(db.sublevel('sub2'), 199);
 });
