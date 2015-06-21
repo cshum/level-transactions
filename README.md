@@ -1,19 +1,19 @@
-# level-async-transaction
+# level-transactions
 
-Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup) . 
-Uses Two-Phase Commit approach, apply locks on a per key basis, atomic commits for LevelDB. Compatible with [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
+Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup). 
+Uses Two-Phase Commit approach, snapshot isolation, atomic operations for LevelDB. Supports [LevelSublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
-[![Build Status](https://travis-ci.org/cshum/level-async-transaction.svg?branch=master)](https://travis-ci.org/cshum/level-async-transaction)
+[![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
 ```bash
-npm install level-async-transaction
+npm install level-transactions
 ```
 
 ```js
 var levelup = require('levelup');
 var db = levelup('./db',{ valueEncoding: 'json' });
 
-require('level-async-transaction')(db);
+require('level-transactions')(db);
 
 var tx = db.transaction();
 var tx2 = db.transaction();
@@ -45,15 +45,15 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ###How it works
 LevelDB methods are asynchronous.
-level-async-transaction maintains a queue + mutex control to ensure sequential ordering, mutually exclusive access of operations on a per key basis:
+level-transactions maintain queue + mutex control to ensure sequential ordering, mutually exclusive access of operations in a per key basis:
 
 1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
-2. Prefix + key hashed mutex for mutually exclusive operation during lock phase of a transaction.
+2. Sublevel prefix + key hashed mutex for mutually exclusive operation during lock phase of transactions.
 
 Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ###Limitations
-* Mutexes are handled in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
+* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
 * Only `get`, `put`, `del` methods are available for transaction. "Range locks" with `createReadStream` is not yet implemented.
 
 ##API

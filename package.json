@@ -1,5 +1,5 @@
 {
-  "name": "level-async-transaction",
+  "name": "level-transactions",
   "version": "0.3.1",
   "description": "2PL transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:cshum/level-async-transaction.git"
+    "url": "git@github.com:cshum/level-transactions.git"
   },
   "keywords": [
     "node.js",
