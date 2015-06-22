@@ -6,7 +6,11 @@ var test        = require('tape'),
     transaction = require('../');
 
 function newDB(){
-  return sublevel( levelup({}, { db: memdown, valueEncoding: 'json' }) );
+  return sublevel( levelup({}, {
+    db: memdown, 
+    keyEncoding: 'utf8',
+    valueEncoding: 'json' 
+  }) );
 }
 
 test('CRUD, isolation and defer',function(t){
@@ -116,38 +120,37 @@ test('Liveness',function(t){
   });
 });
 
-test('SubLevel',function(t){
-  t.plan(8);
+test('SubLevel and Codec',function(t){
+  t.plan(5);
 
   var db = newDB();
   transaction(db);
 
-  function inc(sub, n){
-    var tx = db.transaction({ prefix: sub });
-    var tx2 = db.transaction({ prefix: sub });
+  var tx = db.transaction({
+    prefix: db.sublevel('a'),
+    keyEncoding: 'json',
+    valueEncoding: 'json'
+  });
 
-    tx.put('k', n);
-    sub.get('k', function(err, data){
-      t.ok(err.notFound, 'notFound error');
-      t.notOk(data, 'value not exists');
-      tx.commit(function(){
-        tx2.get('k', function(err, value){
-          tx2.put('k', value + 1);
-        });
-        sub.get('k', function(err, data){
-          t.equal(data, n, 'tx commit, value equals tx put');
-          tx2.commit(function(err){
-            sub.get('k', function(err, data){
-              t.equal(data, n + 1, 'tx2 commit, value equals tx2 increment');
-            });
-          });
-        });
-      });
+  tx.put(123, 456);
+  tx.get('123', function(err, val){
+    t.ok(err.notFound, 'non exist key notFound');
+  });
+  tx.get('123', { keyEncoding: 'utf8', valueEncoding: 'utf8' }, function(err, val){
+    t.equal(val, '456', 'valueEncoding');
+  });
+  tx.put(123, 167, { prefix: db.sublevel('b')});
+  tx.get(123, { prefix: db.sublevel('b')}, function(err, val){
+    t.equal(val, 167, 'sublevel');
+  });
+  tx.commit(function(){
+    db.sublevel('a').get('123', function(err, val){
+      t.equal(val, 456, 'sublevel a committed');
     });
-  }
-
-  inc(db.sublevel('sub'), 167);
-  inc(db.sublevel('sub2'), 199);
+    db.sublevel('b').get('123', function(err, val){
+      t.equal(val, 167, 'sublevel b committed');
+    });
+  });
 });
 
 test('Defer error', function(t){

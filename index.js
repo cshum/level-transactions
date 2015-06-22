@@ -64,8 +64,6 @@ module.exports = function(db, _opts){
     ctx.hash = (ctx.prefix ? JSON.stringify(ctx.prefix.prefix()) : '') + '!' +
       String(this._codec.encodeKey(ctx.params.key, ctx.options));
 
-    console.log(ctx.hash);
-
     this.defer(function(cb){
       if(self._taken[ctx.hash]){
         next();
