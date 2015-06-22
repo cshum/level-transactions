@@ -8,16 +8,14 @@ var extend       = require('extend'),
     error        = require('./error'),
     params       = ginga.params;
 
-var defaults = {
-  ttl: 20 * 1000
-};
-
 module.exports = function(db, _opts){
   var mutex = {};
 
   function Transaction(opts){
     this.db = db;
-    this.options = extend({}, defaults, _opts, opts);
+    this.options = extend({
+      ttl: 20 * 1000
+    }, db.options, _opts, opts);
 
     this._released = false;
 
