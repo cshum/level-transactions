@@ -3,6 +3,7 @@ var extend       = require('extend'),
     ginga        = require('ginga'),
     semaphore    = require('./semaphore'),
     levelErrors  = require('level-errors'),
+    Codec        = require('level-codec'),
     Queue        = require('./queue'),
     error        = require('./error'),
     params       = ginga.params;
@@ -20,6 +21,7 @@ module.exports = function(db, _opts){
 
     this._released = false;
 
+    this._codec = new Codec(this.options);
     this._taken = {};
     this._map = {};
     this._notFound = {};
@@ -59,11 +61,10 @@ module.exports = function(db, _opts){
       ctx.prefix = ctx.options.prefix;
 
     //key + sublevel prefix hash
-    ctx.hash = JSON.stringify(
-      ctx.prefix ? 
-      [ctx.prefix.prefix(), ctx.params.key] : 
-      ctx.params.key
-    );
+    ctx.hash = (ctx.prefix ? JSON.stringify(ctx.prefix.prefix()) : '') + '!' +
+      String(this._codec.encodeKey(ctx.params.key, ctx.options));
+
+    console.log(ctx.hash);
 
     this.defer(function(cb){
       if(self._taken[ctx.hash]){
@@ -92,7 +93,8 @@ module.exports = function(db, _opts){
         'Key not found in transaction [' + ctx.params.key + ']'
       ));
     if(ctx.hash in this._map)
-      return done(null, this._map[ctx.hash]);
+      return done(null, this._codec.decodeValue(
+        this._map[ctx.hash], ctx.options));
 
     var self = this;
     (ctx.prefix || db).get(ctx.params.key, ctx.options, function(err, val){
@@ -100,7 +102,7 @@ module.exports = function(db, _opts){
         return;
       if(err && err.notFound)
         self._notFound[ctx.hash] = true;
-      self._map[ctx.hash] = val;
+      self._map[ctx.hash] = self._codec.encodeValue(val, ctx.options);
       done(err, val);
     });
   }
@@ -112,7 +114,8 @@ module.exports = function(db, _opts){
       value: ctx.params.value
     }, ctx.options));
 
-    this._map[ctx.hash] = ctx.params.value;
+    this._map[ctx.hash] = this._codec.encodeValue(
+      ctx.params.value, ctx.options);
     delete this._notFound[ctx.hash];
 
     this.emit('put', ctx.params.key, ctx.params.value);
@@ -126,7 +129,7 @@ module.exports = function(db, _opts){
       key: ctx.params.key
     }, ctx.options));
 
-    this._map[ctx.hash] = undefined;
+    delete this._map[ctx.hash];
     this._notFound[ctx.hash] = true;
 
     this.emit('del', ctx.params.key);
@@ -170,6 +173,8 @@ module.exports = function(db, _opts){
         delete mutex[hash];
     }
 
+    delete this.options;
+    delete this._codec;
     delete this._taken;
     delete this._map;
     delete this._batch;
