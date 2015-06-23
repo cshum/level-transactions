@@ -1,6 +1,6 @@
 {
   "name": "level-transactions",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "2PL transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
