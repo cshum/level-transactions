@@ -57,6 +57,44 @@ test('CRUD, isolation and defer',function(t){
     });
   });
 });
+
+test('SubLevel and Codec',function(t){
+  t.plan(5);
+
+  var db = newDB();
+  transaction(db);
+
+  var tx = db.transaction({
+    prefix: db.sublevel('a'),
+    keyEncoding: 'json',
+    valueEncoding: 'json'
+  });
+
+  var val = [456, '789'];
+  tx.put(123, val, function(){
+    val.push('on9'); //should not change put
+  });
+
+  tx.get('123', function(err, val){
+    t.ok(err.notFound, 'non exist key notFound');
+  });
+  tx.get('123', { keyEncoding: 'utf8', valueEncoding: 'utf8' }, function(err, val){
+    t.equal(val, '[456,"789"]', 'valueEncoding');
+  });
+  tx.put(123, [167,'199'], { prefix: db.sublevel('b')});
+  tx.get(123, { prefix: db.sublevel('b')}, function(err, val){
+    t.deepEqual(val, [167,"199"], 'sublevel');
+  });
+  tx.commit(function(){
+    db.sublevel('a').get('123', function(err, val){
+      t.deepEqual(val, [456,'789'], 'sublevel a committed');
+    });
+    db.sublevel('b').get('123', function(err, val){
+      t.deepEqual(val, [167,'199'], 'sublevel b committed');
+    });
+  });
+});
+
 test('Parallelism',function(t){
   t.plan(1);
 
@@ -116,39 +154,6 @@ test('Liveness',function(t){
     t.ok(err.txTimeout, 'error timeout');
     db.get('a', function(err, value){
       t.notOk(value, 'tx2 no put');
-    });
-  });
-});
-
-test('SubLevel and Codec',function(t){
-  t.plan(5);
-
-  var db = newDB();
-  transaction(db);
-
-  var tx = db.transaction({
-    prefix: db.sublevel('a'),
-    keyEncoding: 'json',
-    valueEncoding: 'json'
-  });
-
-  tx.put(123, 456);
-  tx.get('123', function(err, val){
-    t.ok(err.notFound, 'non exist key notFound');
-  });
-  tx.get('123', { keyEncoding: 'utf8', valueEncoding: 'utf8' }, function(err, val){
-    t.equal(val, '456', 'valueEncoding');
-  });
-  tx.put(123, 167, { prefix: db.sublevel('b')});
-  tx.get(123, { prefix: db.sublevel('b')}, function(err, val){
-    t.equal(val, 167, 'sublevel');
-  });
-  tx.commit(function(){
-    db.sublevel('a').get('123', function(err, val){
-      t.equal(val, 456, 'sublevel a committed');
-    });
-    db.sublevel('b').get('123', function(err, val){
-      t.equal(val, 167, 'sublevel b committed');
     });
   });
 });

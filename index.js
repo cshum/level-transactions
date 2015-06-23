@@ -104,14 +104,17 @@ module.exports = function(db, _opts){
   }
 
   function put(ctx, done){
-    this._batch.push(extend({
+    var enKey = this._codec.encodeKey(ctx.params.key, ctx.options);
+    var enVal = this._codec.encodeValue(ctx.params.value, ctx.options);
+    this._batch.push(extend(ctx.options, {
       type: 'put',
-      key: ctx.params.key,
-      value: ctx.params.value
-    }, ctx.options));
+      key: enKey,
+      value: enVal,
+      keyEncoding: 'utf8',
+      valueEncoding: 'utf8'
+    }));
 
-    this._map[ctx.hash] = this._codec.encodeValue(
-      ctx.params.value, ctx.options);
+    this._map[ctx.hash] = enVal;
     delete this._notFound[ctx.hash];
 
     this.emit('put', ctx.params.key, ctx.params.value);
@@ -120,10 +123,12 @@ module.exports = function(db, _opts){
   }
 
   function del(ctx, done){
-    this._batch.push(extend({
+    var enKey = this._codec.encodeKey(ctx.params.key, ctx.options);
+    this._batch.push(extend(ctx.options, {
       type: 'del',
-      key: ctx.params.key
-    }, ctx.options));
+      key: enKey,
+      keyEncoding: 'utf8'
+    }));
 
     delete this._map[ctx.hash];
     this._notFound[ctx.hash] = true;
