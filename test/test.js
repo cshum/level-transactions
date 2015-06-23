@@ -79,11 +79,11 @@ test('SubLevel and Codec',function(t){
     t.ok(err.notFound, 'non exist key notFound');
   });
   tx.get('123', { keyEncoding: 'utf8', valueEncoding: 'utf8' }, function(err, val){
-    t.equal(val, '[456,"789"]', 'valueEncoding');
+    t.equal(val, JSON.stringify([456,'789']), 'valueEncoding');
   });
   tx.put(123, [167,'199'], { prefix: db.sublevel('b')});
   tx.get(123, { prefix: db.sublevel('b')}, function(err, val){
-    t.deepEqual(val, [167,"199"], 'sublevel');
+    t.deepEqual(val, [167,'199'], 'sublevel');
   });
   tx.commit(function(){
     db.sublevel('a').get('123', function(err, val){
