@@ -1,7 +1,7 @@
 # level-transactions
 
-Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup). 
-Two-phase locking, snapshot isolation, atomic operations for LevelDB. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
+Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
+two-phase locking, snapshot isolation, atomic commits. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
