@@ -1,7 +1,7 @@
 # level-transactions
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup). 
-Uses Two-Phase Commit approach, snapshot isolation, atomic operations for LevelDB. Supports [LevelSublevel](https://github.com/dominictarr/level-sublevel) prefix.
+Uses Two-Phase Commit approach, snapshot isolation, atomic operations for LevelDB. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
@@ -18,19 +18,24 @@ require('level-transactions')(db);
 var tx = db.transaction();
 var tx2 = db.transaction();
 
-tx.put('k', 167);
-
-tx.commit(function(){
+tx.del('k', function(){
+  //k is locked; tx2 can access after tx commits
   tx2.get('k', function(err, value){
-    //tx2 increments value
+    //tx2 increments k
     tx2.put('k', value + 1);
   });
+});
+tx.get('k', function(err){
+  //NotFoundError after tx del
+});
+tx.put('k', 167); //tx put value 167
 
-  db.get('k', function(err, data){
-    //tx commit: data equals to 167
+tx.commit(function(){
+  db.get('k', function(err, val){
+    //tx commit: val equals to 167
     tx2.commit(function(){
-      db.get('k', function(err, data){
-        //tx2 commit: data equals to 168
+      db.get('k', function(err, val){
+        //tx2 commit: val equals to 168
       });
     });
   });
@@ -85,7 +90,7 @@ Any errors will cause a rollback.
 
 ###tx.defer(fn)
 
-Utility function for deferring commit,
+Deferring execution order,
 which adds an asynchronous `fn` function to the transaction queue. 
 
 `fn` is provided with a `callback` function, should be invoked when the task has finished.
@@ -93,15 +98,18 @@ which adds an asynchronous `fn` function to the transaction queue.
 Callback with error argument will result in rollback of transaction.
 
 ```js
-tx.get('k', function(err, value){
-  tx.defer(function(callback){
-    asyncTask(value, function(err, result){
-      if(err)
-        return callback(err);
-      tx.put('k', result);
-      callback();
-    });
-  });
+tx.put('foo', 'bar');
+tx.get('foo', function(err, val){
+  //val === 'bar'
+});
+tx.defer(function(callback){
+  setTimeout(function(){
+    tx.del('foo');
+    callback(); //execute next operation after callback
+  }, 1000);
+});
+tx.get('foo', function(err, val){
+  //NotFoundError after del
 });
 ```
 
@@ -116,6 +124,30 @@ Changes are written to store atomically upon successful commit, or discarded upo
 ###tx.rollback([error], [callback])
 
 `rollback()` release locks acquired during transaction. Can optionally specify `error`.
+
+###Sublevel Prefix
+Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
+```js
+var tx = db.transaction();
+var sub = db.sublevel('sub');
+
+tx.put('foo', 'bar');
+tx.put('foo', 'boo', { prefix: sub });
+tx.get('foo', function(err, val){
+  //val === 'bar'
+});
+tx.get('foo', { prefix: sub }, function(err, val){
+  //val === 'boo'
+});
+tx.commit(function(){
+  db.get('foo', function(err, val){
+    //val === 'bar'
+  });
+  sub.get('foo', function(err, val){
+    //val === 'boo'
+  });
+});
+```
 
 
 ## License

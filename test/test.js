@@ -82,7 +82,7 @@ test('SubLevel and Codec',function(t){
     t.equal(val, JSON.stringify([456,'789']), 'valueEncoding');
   });
   tx.put(123, [167,'199'], { prefix: db.sublevel('b')});
-  tx.get(123, { prefix: db.sublevel('b')}, function(err, val){
+  tx.get(123, { prefix: db.sublevel('b') }, function(err, val){
     t.deepEqual(val, [167,'199'], 'sublevel');
   });
   tx.commit(function(){
