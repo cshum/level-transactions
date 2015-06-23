@@ -1,7 +1,7 @@
 # level-transactions
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup). 
-Uses Two-Phase Commit approach, snapshot isolation, atomic operations for LevelDB. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
+Two-phase locking, snapshot isolation, atomic operations for LevelDB. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
@@ -50,7 +50,7 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ###How it works
 LevelDB methods are asynchronous.
-level-transactions maintain queue + mutex control to ensure sequential ordering, mutually exclusive access of operations in a per key basis:
+level-transactions maintain queue + mutex to ensure sequential ordering, mutually exclusive access of operations on a per key basis:
 
 1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
 2. Sublevel prefix + key hashed mutex for mutually exclusive operation during lock phase of transactions.
@@ -58,7 +58,7 @@ level-transactions maintain queue + mutex control to ensure sequential ordering,
 Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results will only persist upon successful commit, using `batch()` of LevelDB.
 
 ###Limitations
-* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
+* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage in a distributed environment is not yet supported.
 * Only `get`, `put`, `del` methods are available for transaction. "Range locks" with `createReadStream` is not yet implemented.
 
 ##API
