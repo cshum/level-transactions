@@ -63,6 +63,8 @@ module.exports = function(db, _opts){
       String(this._codec.encodeKey(ctx.params.key, ctx.options));
 
     this.defer(function(cb){
+      if(self._released) 
+        return;
       if(self._taken[ctx.hash]){
         next();
       }else{
