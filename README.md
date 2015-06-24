@@ -124,6 +124,7 @@ Changes are written to store atomically upon successful commit, or discarded upo
 ###tx.rollback([error], [callback])
 
 `rollback()` release locks acquired during transaction. Can optionally specify `error`.
+Changes are discarded and `commit()` callback with the specified error.
 
 ```js
 tx.get('foo', function(err, val){
