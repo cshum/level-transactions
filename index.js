@@ -29,7 +29,7 @@ module.exports = function(db, _opts){
     EventEmitter.call(this);
 
     this._timeout = setTimeout(
-      this.release.bind(this, error.TX_TIMEOUT),
+      this.rollback.bind(this, error.TX_TIMEOUT),
       this.options.ttl
     );
   }
@@ -83,6 +83,12 @@ module.exports = function(db, _opts){
       end(cb);
     });
 
+  }
+
+  function abort(ctx, next){
+    this._error = ctx.params.error;
+
+    next();
   }
 
   function get(ctx, done){
@@ -157,7 +163,9 @@ module.exports = function(db, _opts){
     });
     this.done(function(err){
       done = true;
-      if(err)
+      if(self._released)
+        return;
+      if(err) 
         return next(err);
       db.batch(self._batch, function(err, res){
         if(err) next(err); 
@@ -169,9 +177,6 @@ module.exports = function(db, _opts){
   //release after rollback, commit
   function release(ctx, done){
     clearTimeout(this._timeout);
-
-    if(ctx.params && ctx.params.error)
-      this._error = ctx.params.error;
 
     for(var hash in this._taken){
       mutex[hash].leave();
@@ -195,8 +200,7 @@ module.exports = function(db, _opts){
     .define('get', params('key','opts?'), pre, lock, get)
     .define('put', params('key','value','opts?'), pre, lock, put)
     .define('del', params('key','opts?'), pre, lock, del)
-    .define('rollback', params('error?'), pre, release)
-    .define('release', params('error?'), pre, release)
+    .define('rollback', params('error?'), pre, abort, release)
     .define('commit', pre, commit, release);
 
   db.transaction = db.transaction || function(options){

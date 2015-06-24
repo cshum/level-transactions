@@ -159,14 +159,16 @@ test('Liveness',function(t){
 });
 
 test('Defer error', function(t){
-  t.plan(3);
+  t.plan(4);
 
   var db = newDB();
   transaction(db);
 
   var tx = db.transaction();
+  var tx2 = db.transaction();
   tx.put('foo', 'bar', function(err){
     t.notOk(err, 'no error before booom');
+    tx2.put('foo', 'boo');
   });
   tx.defer(function(cb){
     setTimeout(cb.bind(null, 'booom'), 10);
@@ -177,7 +179,41 @@ test('Defer error', function(t){
   tx.commit(function(err){
     t.equal(err, 'booom', 'defer error');
     db.get('foo', function(err){
-      t.ok(err.notFound, 'value not committed');
+      t.ok(err.notFound, 'tx not committed');
+      tx2.commit(function(){
+        db.get('foo', function(err, val){
+          t.equal(val, 'boo', 'tx2 committed');
+        });
+      });
+    });
+  });
+});
+
+test('Rollback', function(t){
+  t.plan(4);
+
+  var db = newDB();
+  transaction(db);
+
+  var tx = db.transaction();
+  var tx2 = db.transaction();
+  tx.put('foo', 'bar', function(err){
+    tx2.put('foo','boo');
+    t.notOk(err, 'no error before booom');
+    tx.rollback('booom');
+  });
+  tx.put('167', 199, function(err){
+    t.error('should not continue after booom');
+  });
+  tx.commit(function(err){
+    t.equal(err, 'booom', 'defer error');
+    db.get('foo', function(err){
+      t.ok(err.notFound, 'tx not committed');
+      tx2.commit(function(){
+        db.get('foo', function(err, val){
+          t.equal(val, 'boo', 'tx2 committed');
+        });
+      });
     });
   });
 });
