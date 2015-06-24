@@ -125,6 +125,18 @@ Changes are written to store atomically upon successful commit, or discarded upo
 
 `rollback()` release locks acquired during transaction. Can optionally specify `error`.
 
+```js
+tx.get('foo', function(err, val){
+  if(val)
+    return tx.rollback(new Error('existed.'));
+  tx.put('foo', 'bar');
+});
+tx.commit(function(err){
+  //if 'foo' exists, err [Error: existed.]
+});
+
+```
+
 ###Sublevel Prefix
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
