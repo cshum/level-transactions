@@ -22,30 +22,31 @@ test('CRUD, isolation and defer',function(t){
   var tx = db.transaction();
   var tx2 = db.transaction();
 
-  tx.put('k', 167);
+  tx.put('k', 167, function(){
+    tx2.get('k', function(err, value){
+      tx2.put('k', 'bla');
+      tx2.get('k', function(err, val){
+        t.equal(val, 'bla', 'after tx2 put');
+      });
+      tx2.defer(function(cb){
+        setTimeout(function(){
+          tx2.del('k');
+          cb();
+        }, 100);
+      });
+      //tx queue follows order defer > del > get
+      tx2.get('k', function(err, val){
+        t.ok(err.notFound, 'tx2 notFound error');
+        t.notOk(val, 'after tx2 defer del');
+      });
+      tx2.put('k', value + 1);
+    });
+  });
 
   db.get('k', function(err, data){
     t.ok(err.notFound, 'notFound error');
     t.notOk(data, 'value not exists');
     tx.commit(function(){
-      tx2.get('k', function(err, value){
-        tx2.put('k', 'bla');
-        tx2.get('k', function(err, val){
-          t.equal(val, 'bla', 'after tx2 put');
-        });
-        tx2.defer(function(cb){
-          setTimeout(function(){
-            tx2.del('k');
-            cb();
-          }, 100);
-        });
-        //tx queue follows order defer > del > get
-        tx2.get('k', function(err, val){
-          t.ok(err.notFound, 'tx2 notFound error');
-          t.notOk(data, 'after tx2 defer del');
-        });
-        tx2.put('k', value + 1);
-      });
       db.get('k', function(err, data){
         t.equal(data, 167, 'tx commit, value equals tx put');
         tx2.commit(function(err){
