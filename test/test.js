@@ -62,7 +62,7 @@ test('CRUD, isolation and defer',function(t){
 });
 
 test('SubLevel and Codec',function(t){
-  t.plan(5);
+  t.plan(6);
 
   var db = newDB();
   transaction(db);
@@ -91,6 +91,11 @@ test('SubLevel and Codec',function(t){
   tx.commit(function(){
     db.sublevel('a').get('123', function(err, val){
       t.deepEqual(val, [456,'789'], 'sublevel a committed');
+      var tx = db.transaction({ prefix: db.sublevel('a') });
+      tx.get('123', function(err, val){
+        t.deepEqual(val, [456,'789'], 'sublevel a get');
+      });
+      tx.commit();
     });
     db.sublevel('b').get('123', function(err, val){
       t.deepEqual(val, [167,'199'], 'sublevel b committed');
