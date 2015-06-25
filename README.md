@@ -19,7 +19,7 @@ var tx = db.transaction();
 var tx2 = db.transaction();
 
 tx.del('k', function(){
-  //k is locked; tx2 can access after tx commits
+  //k is locked by tx; tx2 get k after tx commits
   tx2.get('k', function(err, value){
     //tx2 increments k
     tx2.put('k', value + 1);
@@ -32,10 +32,10 @@ tx.put('k', 167); //tx put value 167
 
 tx.commit(function(){
   db.get('k', function(err, val){
-    //tx commit: val equals to 167
+    //tx commit: val === 167
     tx2.commit(function(){
       db.get('k', function(err, val){
-        //tx2 commit: val equals to 168
+        //tx2 commit: val === 168
       });
     });
   });

@@ -14,7 +14,7 @@ function newDB(){
 }
 
 test('CRUD, isolation and defer',function(t){
-  t.plan(7);
+  t.plan(8);
 
   var db = newDB();
   transaction(db);
@@ -22,8 +22,9 @@ test('CRUD, isolation and defer',function(t){
   var tx = db.transaction();
   var tx2 = db.transaction();
 
-  tx.put('k', 167, function(){
+  tx.del('k', function(){
     tx2.get('k', function(err, value){
+      t.equal(value, 167, 'get value after tx commits');
       tx2.put('k', 'bla');
       tx2.get('k', function(err, val){
         t.equal(val, 'bla', 'after tx2 put');
@@ -42,6 +43,7 @@ test('CRUD, isolation and defer',function(t){
       tx2.put('k', value + 1);
     });
   });
+  tx.put('k', 167);
 
   db.get('k', function(err, data){
     t.ok(err.notFound, 'notFound error');
