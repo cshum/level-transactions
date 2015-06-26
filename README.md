@@ -1,7 +1,7 @@
 # level-transactions
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
-two-phase locking, snapshot isolation, atomic commits. Supports [level-sublevel](https://github.com/dominictarr/level-sublevel) prefix.
+two-phase locking, snapshot isolation, atomic commits.
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
@@ -11,7 +11,7 @@ npm install level-transactions
 
 ```js
 var level = require('level');
-var db = levelup('./db', { valueEncoding: 'json' });
+var db = level('./db', { valueEncoding: 'json' });
 
 var transaction = require('level-transactions');
 
@@ -50,24 +50,31 @@ MongoDB, for example, does not hold such property for bulk operations, hence a w
 
 ###How it works
 LevelDB methods are asynchronous.
-level-transactions maintain queue + mutex to ensure sequential ordering, mutually exclusive access of operations on a per key basis:
+level-transactions maintain queue + mutexes control to ensure linearizability:
 
 1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
 2. Sublevel prefix + key hashed mutex for mutually exclusive operation during lock phase of transactions.
 
-Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results will only persist upon successful commit, using `batch()` of LevelDB.
+Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results only persist upon successful commit, using `batch()` of LevelDB.
 
 ###Limitations
-* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage in a distributed environment is not yet supported.
-* Only `get`, `put`, `del` methods are available for transaction. "Range locks" with `createReadStream` is not yet implemented.
+* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
+* Only `get`, `put`, `del` methods available for transaction. "Range locks" with `createReadStream` is not yet implemented.
 
 ##API
 
 ###transaction(db, [options])
 
 Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
+* `ttl`: Time to live (milliseconds) of each transaction object for liveness. Default to 20 seconds.
 * `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
-* `ttl`: TTL (milliseconds) of each transaction object for liveness. Default to 20 seconds.
+
+```js
+var db = level('./db', { valueEncoding: 'json' });
+var transaction = require('level-transactions');
+
+var tx = transaction(db);
+```
 
 ###tx.get(key, [options], [callback])
 
@@ -79,21 +86,19 @@ All errors except `NotFoundError` will cause a rollback, as non-exist item is no
 ###tx.put(key, value, [options], [callback])
 
 `put()` inserts/updates data into transaction object when lock acquired, 
-will only be applied into store upon successful commit. 
-Any errors will cause a rollback.
+will only be applied upon successful commit. 
 
 ###tx.del(key, [options], [callback])
 
 `del()` removes data from transaction object, 
 will only be applied upon successful commit. 
-Any errors will cause a rollback.
 
-###tx.defer(fn)
+###tx.defer(task)
 
 Deferring execution order,
-which adds an asynchronous `fn` function to the transaction queue. 
+which adds an asynchronous `task` function to the transaction queue. 
 
-`fn` is provided with a `callback` function, should be invoked when the task has finished.
+`task` is provided with a `callback` function, should be invoked when the task has finished.
 
 Callback with error argument will result in rollback of transaction.
 
@@ -138,7 +143,7 @@ tx.commit(function(err){
 
 ```
 
-###Sublevel Prefix
+###level-sublevel prefix
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
 var sub = db.sublevel('sub');
