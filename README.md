@@ -10,10 +10,10 @@ npm install level-transactions
 ```
 
 ```js
-var levelup = require('levelup');
-var db = levelup('./db',{ valueEncoding: 'json' });
+var level = require('level');
+var db = levelup('./db', { valueEncoding: 'json' });
 
-require('level-transactions')(db);
+var transaction = require('level-transactions');
 
 var tx = transaction(db);
 var tx2 = transaction(db);
