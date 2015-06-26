@@ -65,8 +65,8 @@ Upon acquiring queue + mutex, each transaction object holds a snapshot isolation
 
 ###transaction(db, [options])
 
-Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
-* `ttl`: Time to live (milliseconds) of each transaction object for liveness. Default to 20 seconds.
+Creates a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
+* `ttl`: Time to live (milliseconds) of transaction object for liveness. Defaults to 20 seconds.
 * `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
 
 ```js
@@ -147,7 +147,6 @@ tx.commit(function(err){
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
 var sub = db.sublevel('sub');
-var tx = transaction(db);
 
 tx.put('foo', 'bar');
 tx.put('foo', 'boo', { prefix: sub });
