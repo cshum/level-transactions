@@ -17,10 +17,9 @@ test('CRUD, isolation and defer',function(t){
   t.plan(8);
 
   var db = newDB();
-  transaction(db);
 
-  var tx = db.transaction();
-  var tx2 = db.transaction();
+  var tx = transaction(db);
+  var tx2 = transaction(db);
 
   tx.del('k', function(){
     tx2.get('k', function(err, value){
@@ -65,9 +64,8 @@ test('SubLevel and Codec',function(t){
   t.plan(6);
 
   var db = newDB();
-  transaction(db);
 
-  var tx = db.transaction({
+  var tx = transaction(db, {
     prefix: db.sublevel('a'),
     keyEncoding: 'json',
     valueEncoding: 'json'
@@ -91,7 +89,7 @@ test('SubLevel and Codec',function(t){
   tx.commit(function(){
     db.sublevel('a').get('123', function(err, val){
       t.deepEqual(val, [456,'789'], 'sublevel a committed');
-      var tx = db.transaction({ prefix: db.sublevel('a') });
+      var tx = transaction(db, { prefix: db.sublevel('a') });
       tx.get('123', function(err, val){
         t.deepEqual(val, [456,'789'], 'sublevel a get');
       });
@@ -109,10 +107,9 @@ test('Parallelism',function(t){
   var n = 100;
 
   var db = newDB();
-  transaction(db);
 
   function inc(){
-    var tx = db.transaction();
+    var tx = transaction(db);
     tx.defer(function(cb){
       tx.get('k', function(err, val){
         tx.put('k', (val || 0) + 1);
@@ -133,10 +130,9 @@ test('Liveness',function(t){
   t.plan(4);
 
   var db = newDB();
-  transaction(db, {ttl: 500});
 
-  var tx = db.transaction();
-  var tx2 = db.transaction();
+  var tx = transaction(db, {ttl: 500});
+  var tx2 = transaction(db, {ttl: 500});
 
   tx.get('a', function(err, val){
     tx.defer(function(cb){
@@ -170,10 +166,9 @@ test('Defer error', function(t){
   t.plan(4);
 
   var db = newDB();
-  transaction(db);
 
-  var tx = db.transaction();
-  var tx2 = db.transaction();
+  var tx = transaction(db);
+  var tx2 = transaction(db);
   tx.put('foo', 'bar', function(err){
     t.notOk(err, 'no error before booom');
     tx2.put('foo', 'boo');
@@ -201,10 +196,9 @@ test('Rollback', function(t){
   t.plan(4);
 
   var db = newDB();
-  transaction(db);
 
-  var tx = db.transaction();
-  var tx2 = db.transaction();
+  var tx = transaction(db);
+  var tx2 = transaction(db);
   tx.put('foo', 'bar', function(err){
     tx2.put('foo','boo');
     t.notOk(err, 'no error before booom');

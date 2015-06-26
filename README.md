@@ -15,8 +15,8 @@ var db = levelup('./db',{ valueEncoding: 'json' });
 
 require('level-transactions')(db);
 
-var tx = db.transaction();
-var tx2 = db.transaction();
+var tx = transaction(db);
+var tx2 = transaction(db);
 
 tx.del('k', function(){
   //k is locked by tx; tx2 get k after tx commits
@@ -63,7 +63,7 @@ Upon acquiring queue + mutex, each transaction object holds a snapshot isolation
 
 ##API
 
-###db.transaction([options])
+###transaction(db, [options])
 
 Create a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
 * `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
@@ -141,8 +141,8 @@ tx.commit(function(err){
 ###Sublevel Prefix
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
-var tx = db.transaction();
 var sub = db.sublevel('sub');
+var tx = transaction(db);
 
 tx.put('foo', 'bar');
 tx.put('foo', 'boo', { prefix: sub });
