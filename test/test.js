@@ -127,7 +127,7 @@ test('Parallelism',function(t){
 });
 
 test('Liveness',function(t){
-  t.plan(4);
+  t.plan(6);
 
   var db = newDB();
 
@@ -160,6 +160,19 @@ test('Liveness',function(t){
       t.notOk(value, 'tx2 no put');
     });
   });
+  setTimeout(function(){
+    var tx3 = transaction(db);
+    tx3.put('a', 'foo');
+    tx3.put('b', 'bar');
+    tx3.commit(function(err){
+      db.get('a', function(err, value){
+        t.equal(value, 'foo', 'tx3 put success');
+      });
+      db.get('b', function(err, value){
+        t.equal(value, 'bar', 'tx3 put success');
+      });
+    });
+  }, 100);
 });
 
 test('Defer error', function(t){
