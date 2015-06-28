@@ -1,6 +1,6 @@
 {
   "name": "level-transactions",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {

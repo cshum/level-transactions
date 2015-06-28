@@ -160,7 +160,7 @@ function commit(ctx, next, end){
     if(err)
       self.rollback();
   });
-  this.on('release', function(err){
+  this.once('release', function(err){
     if(!done) next(err);
   });
   this.done(function(err){
@@ -180,10 +180,11 @@ function commit(ctx, next, end){
 function release(ctx, done){
   clearTimeout(this._timeout);
 
+  var mutex = this.db._mutex;
   for(var hash in this._taken){
-    this.db._mutex[hash].leave();
-    if(this.db._mutex[hash].empty())
-      delete this.db._mutex[hash];
+    mutex[hash].leave();
+    if(mutex[hash].empty())
+      delete mutex[hash];
   }
 
   delete this.options;

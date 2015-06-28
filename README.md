@@ -19,7 +19,7 @@ var tx = transaction(db);
 var tx2 = transaction(db);
 
 tx.del('k', function(){
-  //k is locked by tx; tx2 get k after tx commits
+  //k is locked by tx; tx2 gets k after tx commits
   tx2.get('k', function(err, value){
     //tx2 increments k
     tx2.put('k', value + 1);
@@ -59,7 +59,7 @@ Upon acquiring queue + mutex, each transaction object holds a snapshot isolation
 
 ###Limitations
 * Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
-* Only `get`, `put`, `del` methods available for transaction. "Range locks" with `createReadStream` is not yet implemented.
+* "Range locks" with `createReadStream` is not yet implemented.
 
 ##API
 
@@ -67,7 +67,6 @@ Upon acquiring queue + mutex, each transaction object holds a snapshot isolation
 
 Creates a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
 * `ttl`: Time to live (milliseconds) of transaction object for liveness. Defaults to 20 seconds.
-* `prefix`: [level-sublevel prefix](https://github.com/dominictarr/level-sublevel#hooks-example).
 
 ```js
 var db = level('./db', { valueEncoding: 'json' });
