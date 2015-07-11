@@ -43,27 +43,26 @@ tx.commit(function(){
 
 ```
 
-###Why LevelDB
+### Why LevelDB
 
 LevelDB supports atomic batched operations. This is an important primitive for building solid database functionality with inherent consistency.
-MongoDB, for example, does not hold such property for bulk operations, hence a wrapper like this would not be possible.
+MongoDB, for example, does not hold such property for bulk operations, hence a wrapper like this would not be achievable.
 
-###How it works
+### How it works
 LevelDB methods are asynchronous.
-level-transactions maintain queue + mutexes control to ensure linearizability:
+level-transactions maintain stack + mutexes control to ensure linearizability:
 
-1. Operation queue for sequential `get`, `put`, `del`, `defer` within a transaction.
+1. Operation stack for sequential `get`, `put`, `del`, `defer` within a transaction.
 2. Sublevel prefix + key hashed mutex for mutually exclusive operation during lock phase of transactions.
+3. Upon acquiring locks, each transaction object holds a snapshot isolation. Results only persist upon successful commit, using `batch()` of LevelDB.
 
-Upon acquiring queue + mutex, each transaction object holds a snapshot isolation. Results only persist upon successful commit, using `batch()` of LevelDB.
-
-###Limitations
+### Limitations
 * Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
-* "Range locks" with `createReadStream` is not yet implemented.
+* "Range locks" with `createReadStream` is not yet supported.
 
-##API
+## API
 
-###transaction(db, [options])
+### transaction(db, [options])
 
 Creates a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
 * `ttl`: Time to live (milliseconds) of transaction object for liveness. Defaults to 20 seconds.
@@ -75,27 +74,27 @@ var transaction = require('level-transactions');
 var tx = transaction(db);
 ```
 
-###tx.get(key, [options], [callback])
+### tx.get(key, [options], [callback])
 
 `get()` fetches data from store when lock acquired, 
 and callback with value or error.
 
 All errors except `NotFoundError` will cause a rollback, as non-exist item is not considered an error in transaction.
 
-###tx.put(key, value, [options], [callback])
+### tx.put(key, value, [options], [callback])
 
 `put()` inserts/updates data into transaction object when lock acquired, 
 will only be applied upon successful commit. 
 
-###tx.del(key, [options], [callback])
+### tx.del(key, [options], [callback])
 
 `del()` removes data from transaction object, 
 will only be applied upon successful commit. 
 
-###tx.defer(task)
+### tx.defer(task)
 
 Deferring execution order,
-which adds an asynchronous `task` function to the transaction queue. 
+which adds an asynchronous `task` function to the transaction stack. 
 
 `task` is provided with a `callback` function, should be invoked when the task has finished.
 
@@ -117,7 +116,7 @@ tx.get('foo', function(err, val){
 });
 ```
 
-###tx.commit([callback])
+### tx.commit([callback])
 
 `commit()` commit operations and release locks acquired during transaction.
 
@@ -125,7 +124,7 @@ Uses levelup's `batch()` under the hood.
 Changes are written to store atomically upon successful commit, or discarded upon error.
 
 
-###tx.rollback([error], [callback])
+### tx.rollback([error], [callback])
 
 `rollback()` release locks acquired during transaction. Can optionally specify `error`.
 Changes are discarded and `commit()` callback with the specified error.
@@ -142,7 +141,7 @@ tx.commit(function(err){
 
 ```
 
-###level-sublevel prefix
+### level-sublevel prefix
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
 var sub = db.sublevel('sub');
