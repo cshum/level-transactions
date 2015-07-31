@@ -87,10 +87,8 @@ function lock(ctx, next, end){
 
 }
 
-function abort(ctx, next){
+function abort(ctx){
   this._error = ctx.params.error;
-
-  next();
 }
 
 function get(ctx, done){
@@ -157,8 +155,7 @@ function commit(ctx, next, end){
 
   end(function(err){
     //rollback on commit error
-    if(err)
-      self.rollback();
+    if(err) self.rollback(err);
   });
   this.once('release', function(err){
     if(!done) next(err);
@@ -196,6 +193,7 @@ function release(ctx, done){
 
   this._released = true;
   this.emit('release', this._error);
+  this.emit('end', this._error);
   done(this._error);
 }
 

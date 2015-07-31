@@ -14,12 +14,18 @@ function newDB(){
 }
 
 test('CRUD, isolation and defer',function(t){
-  t.plan(8);
+  t.plan(10);
 
   var db = newDB();
 
   var tx = transaction(db);
   var tx2 = transaction(db);
+  tx.on('end', function(err){
+    t.notOk(err, 'tx end no error');
+  });
+  tx2.on('end', function(err){
+    t.notOk(err, 'tx2 end error');
+  });
 
   tx.del('k', function(){
     tx2.get('k', function(err, value){
@@ -176,7 +182,7 @@ test('Liveness',function(t){
 });
 
 test('Defer error', function(t){
-  t.plan(4);
+  t.plan(5);
 
   var db = newDB();
 
@@ -188,6 +194,9 @@ test('Defer error', function(t){
   });
   tx.defer(function(cb){
     setTimeout(cb.bind(null, 'booom'), 10);
+  });
+  tx.on('end', function(err){
+    t.equal(err, 'booom', 'end error');
   });
   tx.put('167', 199, function(err){
     t.error('should not continue after booom');
@@ -206,12 +215,15 @@ test('Defer error', function(t){
 });
 
 test('Rollback', function(t){
-  t.plan(4);
+  t.plan(5);
 
   var db = newDB();
 
   var tx = transaction(db);
   var tx2 = transaction(db);
+  tx.on('end', function(err){
+    t.equal(err, 'booom', 'end error');
+  });
   tx.put('foo', 'bar', function(err){
     tx2.put('foo','boo');
     t.notOk(err, 'no error before booom');
