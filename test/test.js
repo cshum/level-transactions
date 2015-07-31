@@ -132,7 +132,7 @@ test('Parallelism',function(t){
   _.range(n).forEach(inc);
 });
 
-test('Liveness',function(t){
+test('TTL',function(t){
   t.plan(6);
 
   var db = newDB();
@@ -189,8 +189,10 @@ test('Lock',function(t){
   var tx = transaction(db);
   var tx2 = transaction(db);
 
-  tx.lock('a');
-  tx2.lock('a');
+  //both must get foo access before anything else,
+  //will not deadlock at a b
+  tx.lock('foo');
+  tx2.lock('foo');
 
   tx.get('a', function(err, val){
     tx.defer(function(cb){

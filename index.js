@@ -62,7 +62,7 @@ function lock(ctx, next, end){
 
   //key + sublevel prefix hash
   ctx.hash = (ctx.prefix ? JSON.stringify(ctx.prefix.prefix()) : '') + '!';
-
+  //hash must not collide with key 
   if(ctx.params.hash)
     ctx.hash += 'h!' + String(this._codec.encodeKey(ctx.params.hash, ctx.options));
   if(ctx.params.key)
