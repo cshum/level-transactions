@@ -61,8 +61,12 @@ function lock(ctx, next, end){
     ctx.prefix = ctx.options.prefix;
 
   //key + sublevel prefix hash
-  ctx.hash = (ctx.prefix ? JSON.stringify(ctx.prefix.prefix()) : '') + '!' +
-    String(this._codec.encodeKey(ctx.params.key, ctx.options));
+  ctx.hash = (ctx.prefix ? JSON.stringify(ctx.prefix.prefix()) : '') + '!';
+
+  if(ctx.params.hash)
+    ctx.hash += 'h!' + String(this._codec.encodeKey(ctx.params.hash, ctx.options));
+  if(ctx.params.key)
+    ctx.hash += 'k!' + String(this._codec.encodeKey(ctx.params.key, ctx.options));
 
   this.defer(function(cb){
     if(self._released) 
@@ -198,6 +202,7 @@ function release(ctx, done){
 }
 
 ginga(Transaction.prototype)
+  .define('lock', params('hash','opts?'), pre, lock)
   .define('get', params('key','opts?'), pre, lock, get)
   .define('put', params('key','value','opts?'), pre, lock, put)
   .define('del', params('key','opts?'), pre, lock, del)

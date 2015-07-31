@@ -181,6 +181,45 @@ test('Liveness',function(t){
   }, 100);
 });
 
+test('Lock',function(t){
+  t.plan(4);
+
+  var db = newDB();
+
+  var tx = transaction(db);
+  var tx2 = transaction(db);
+
+  tx.lock('a');
+  tx2.lock('a');
+
+  tx.get('a', function(err, val){
+    tx.defer(function(cb){
+      setTimeout(cb, 100);
+    });
+    tx.put('b', 167);
+  });
+
+  tx2.get('b', function(err, val){
+    tx.defer(function(cb){
+      setTimeout(cb, 100);
+    });
+    tx2.put('a', 167);
+  });
+
+  tx.commit(function(err){
+    t.notOk(err, 'tx commit success');
+    db.get('b', function(err, value){
+      t.equal(value, 167, 'tx put');
+    });
+  });
+  tx2.commit(function(err){
+    t.notOk(err, 'tx2 commit success');
+    db.get('a', function(err, value){
+      t.equal(value, 167, 'tx2 put');
+    });
+  });
+});
+
 test('Defer error', function(t){
   t.plan(5);
 
