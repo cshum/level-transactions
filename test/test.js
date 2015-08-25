@@ -2,7 +2,6 @@ var test = require('tape')
 var levelup = require('levelup')
 var sublevel = require('sublevelup')
 var memdown = require('memdown')
-var _ = require('underscore')
 var transaction = require('../')
 
 function newDB () {
@@ -144,7 +143,7 @@ test('Parallelism', function (t) {
       })
     })
   }
-  _.range(n).forEach(inc)
+  for (var i = 0; i < n; i++) inc()
 })
 
 test('TTL', function (t) {
