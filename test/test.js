@@ -1,6 +1,6 @@
 var test = require('tape')
 var levelup = require('levelup')
-var sublevel = require('level-sublevel')
+var sublevel = require('sublevelup')
 var memdown = require('memdown')
 var _ = require('underscore')
 var transaction = require('../')
