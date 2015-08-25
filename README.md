@@ -2,7 +2,7 @@
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
 two-phase locking, snapshot isolation, atomic commits, 
-[sublevel](https://github.com/cshum/sublevelup/) support.
+[SublevelUP](https://github.com/cshum/sublevelup/) support.
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
@@ -147,21 +147,22 @@ Transaction works across [SublevelUP](https://github.com/cshum/sublevelup/) sect
 
 ```js
 var sub = db.sublevel('sub')
+var tx = transaction(db)
 
 tx.put('foo', 'bar')
-tx.put('foo', 'boo', { prefix: sub })
+tx.put('foo', 'foo', { prefix: sub })
 tx.get('foo', function (err, val) {
   //val === 'bar'
 })
 tx.get('foo', { prefix: sub }, function (err, val) {
-  //val === 'boo'
+  //val === 'foo'
 })
 tx.commit(function () {
   db.get('foo', function (err, val) {
     //val === 'bar'
   })
   sub.get('foo', function (err, val) {
-    //val === 'boo'
+    //val === 'foo'
   })
 })
 ```
