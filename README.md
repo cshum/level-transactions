@@ -10,36 +10,36 @@ npm install level-transactions
 ```
 
 ```js
-var level = require('level');
-var db = level('./db', { valueEncoding: 'json' });
+var level = require('level')
+var db = level('./db', { valueEncoding: 'json' })
 
-var transaction = require('level-transactions');
+var transaction = require('level-transactions')
 
-var tx = transaction(db);
-var tx2 = transaction(db);
+var tx = transaction(db)
+var tx2 = transaction(db)
 
-tx.del('k', function(){
-  //k is locked by tx; tx2 gets k after tx commits
-  tx2.get('k', function(err, value){
+tx.del('k', function () {
+  //k is locked by tx, tx2 gets k after tx commits
+  tx2.get('k', function (err, value) {
     //tx2 increments k
-    tx2.put('k', value + 1);
-  });
-});
-tx.get('k', function(err){
+    tx2.put('k', value + 1)
+  })
+})
+tx.get('k', function (err) {
   //NotFoundError after tx del
-});
-tx.put('k', 167); //tx put value 167
+})
+tx.put('k', 167) //tx put value 167
 
-tx.commit(function(){
-  db.get('k', function(err, val){
+tx.commit(function () {
+  db.get('k', function (err, val) {
     //tx commit: val === 167
-    tx2.commit(function(){
-      db.get('k', function(err, val){
+    tx2.commit(function () {
+      db.get('k', function (err, val) {
         //tx2 commit: val === 168
-      });
-    });
-  });
-});
+      })
+    })
+  })
+})
 
 ```
 
@@ -68,10 +68,10 @@ Creates a transaction object. Takes an optional `options` argument, accepts prop
 * `ttl`: Time to live (milliseconds) of transaction object for liveness. Defaults to 20 seconds.
 
 ```js
-var db = level('./db', { valueEncoding: 'json' });
-var transaction = require('level-transactions');
+var db = level('./db', { valueEncoding: 'json' })
+var transaction = require('level-transactions')
 
-var tx = transaction(db);
+var tx = transaction(db)
 ```
 
 ### tx.get(key, [options], [callback])
@@ -101,19 +101,19 @@ which adds an asynchronous `task` function to the transaction stack.
 Callback with error argument will result in rollback of transaction.
 
 ```js
-tx.put('foo', 'bar');
-tx.get('foo', function(err, val){
+tx.put('foo', 'bar')
+tx.get('foo', function (err, val) {
   //val === 'bar'
-});
-tx.defer(function(callback){
-  setTimeout(function(){
-    tx.del('foo');
-    callback(); //execute next operation after callback
-  }, 1000);
-});
-tx.get('foo', function(err, val){
+})
+tx.defer(function (callback) {
+  setTimeout(function () {
+    tx.del('foo')
+    callback() //execute next operation after callback
+  }, 1000)
+})
+tx.get('foo', function (err, val) {
   //NotFoundError after del
-});
+})
 ```
 
 ### tx.commit([callback])
@@ -130,38 +130,37 @@ Changes are written to store atomically upon successful commit, or discarded upo
 Changes are discarded and `commit()` callback with the specified error.
 
 ```js
-tx.get('foo', function(err, val){
-  if(val)
-    return tx.rollback(new Error('existed.'));
-  tx.put('foo', 'bar');
-});
-tx.commit(function(err){
+tx.get('foo', function (err, val) {
+  if(val) return tx.rollback(new Error('existed.'))
+  tx.put('foo', 'bar')
+})
+tx.commit(function (err) {
   //if 'foo' exists, err [Error: existed.]
-});
+})
 
 ```
 
 ### level-sublevel prefix
 Transaction works across [level-sublevel](https://github.com/dominictarr/level-sublevel) sections under the same database by adding the `prefix` property.
 ```js
-var sub = db.sublevel('sub');
+var sub = db.sublevel('sub')
 
-tx.put('foo', 'bar');
-tx.put('foo', 'boo', { prefix: sub });
-tx.get('foo', function(err, val){
+tx.put('foo', 'bar')
+tx.put('foo', 'boo', { prefix: sub })
+tx.get('foo', function (err, val) {
   //val === 'bar'
-});
-tx.get('foo', { prefix: sub }, function(err, val){
+})
+tx.get('foo', { prefix: sub }, function (err, val) {
   //val === 'boo'
-});
-tx.commit(function(){
-  db.get('foo', function(err, val){
+})
+tx.commit(function () {
+  db.get('foo', function (err, val) {
     //val === 'bar'
-  });
-  sub.get('foo', function(err, val){
+  })
+  sub.get('foo', function (err, val) {
     //val === 'boo'
-  });
-});
+  })
+})
 ```
 
 
