@@ -1,15 +1,19 @@
 var test = require('tape')
 var levelup = require('levelup')
 var sublevel = require('sublevelup')
-var memdown = require('memdown')
+var leveldown = require('leveldown')
 var transaction = require('../')
 
+require('rimraf').sync('test/db')
+
+var db = sublevel(levelup('test/db', {
+  db: leveldown,
+  keyEncoding: 'utf8',
+  valueEncoding: 'json'
+}))
+var count = 0
 function newDB () {
-  return sublevel(levelup({}, {
-    db: memdown,
-    keyEncoding: 'utf8',
-    valueEncoding: 'json'
-  }))
+  return db.sublevel(String(count++))
 }
 
 test('CRUD, isolation and defer', function (t) {
