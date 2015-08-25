@@ -12,9 +12,15 @@ function Transaction (db, opts) {
   if (!(this instanceof Transaction)) {
     return new Transaction(db, opts)
   }
-
   this.db = db
-  this.db._mutex = this.db._mutex || {}
+  if (typeof db.sublevel === 'function' && db.options.db) {
+    // all sublevels share same leveldown constructor
+    db.options.db._mutex = db.options.db._mutex || {}
+    this._mutex = db.options.db._mutex
+  } else {
+    db._mutex = db._mutex || {}
+    this._mutex = db._mutex
+  }
 
   this.options = extend({
     ttl: 20 * 1000
@@ -76,7 +82,7 @@ function lock (ctx, next, end) {
       next()
     } else {
       // gain mutually exclusive access to transaction
-      var mu = self.db._mutex[ctx.hash] = self.db._mutex[ctx.hash] || semaphore(1)
+      var mu = self._mutex[ctx.hash] = self._mutex[ctx.hash] || semaphore(1)
       mu.take(function () {
         if (self._released) {
           mu.leave()
@@ -179,7 +185,7 @@ function commit (ctx, next, end) {
 function release (ctx, done) {
   clearTimeout(this._timeout)
 
-  var mutex = this.db._mutex
+  var mutex = this._mutex
   for (var hash in this._taken) {
     mutex[hash].leave()
     if (mutex[hash].empty()) delete mutex[hash]
