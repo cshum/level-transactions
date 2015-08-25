@@ -126,20 +126,32 @@ test('SubLevel and Codec', function (t) {
 test('Parallelism', function (t) {
   t.plan(2)
 
+  var i
   var n = 100
 
   var db = newDB()
+  var sub = db.sublevel('sub')
 
   function inc () {
-    var tx = transaction(db)
-    tx.defer(function (cb) {
-      tx.get('k', function (err, val) {
-        tx.put('k', (err ? 0 : val) + 1)
-        setTimeout(cb, 10)
+    var tx
+    if (i < 50) {
+      // wrapping sublevel
+      tx = transaction(sub)
+      tx.defer(function (cb) {
+        tx.get('foo', function (err, val) {
+          tx.put('foo', (err ? 0 : val) + 1)
+          setTimeout(cb, 10)
+        })
       })
-    })
+    } else {
+      // wrapping base db, sublevel prefix
+      tx = transaction(db)
+      tx.get('foo', { prefix: sub }, function (err, val) {
+        tx.put('foo', (err ? 0 : val) + 1, { prefix: sub })
+      })
+    }
     tx.commit(function () {
-      db.get('k', function (err, val) {
+      sub.get('foo', function (err, val) {
         if (val === n) {
           t.notOk(err)
           t.pass('Parallel increment')
@@ -147,7 +159,7 @@ test('Parallelism', function (t) {
       })
     })
   }
-  for (var i = 0; i < n; i++) inc()
+  for (i = 0; i < n; i++) inc()
 })
 
 test('TTL', function (t) {

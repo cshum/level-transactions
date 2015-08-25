@@ -60,20 +60,22 @@ function lock (ctx, next, end) {
   // options object
   ctx.options = extend({}, this.options, ctx.params.opts)
 
-  // check sublevel
+  // sublevel prefix
   if (ctx.options && ctx.options.prefix &&
     typeof ctx.options.prefix.sublevel === 'function') {
-    ctx.prefix = ctx.options.prefix
+    ctx.sublevel = ctx.options.prefix
+    ctx.hash = ctx.sublevel.prefix
+  } else {
+    ctx.sublevel = null
+    ctx.hash = this.db.prefix || ''
   }
 
   // key + sublevel prefix hash
-  ctx.hash = (ctx.prefix ? ctx.prefix.prefix : '') + '!'
   // hash must not collide with key
   if (ctx.params.hash) {
-    ctx.hash += 'h!' + String(this._codec.encodeKey(ctx.params.hash, ctx.options))
-  }
-  if (ctx.params.key) {
-    ctx.hash += 'k!' + String(this._codec.encodeKey(ctx.params.key, ctx.options))
+    ctx.hash += '!h!' + String(this._codec.encodeKey(ctx.params.hash, ctx.options))
+  } else if (ctx.params.key) {
+    ctx.hash += '!k!' + String(this._codec.encodeKey(ctx.params.key, ctx.options))
   }
 
   this.defer(function (cb) {
@@ -112,7 +114,7 @@ function get (ctx, done) {
     return done(null, this._codec.decodeValue(
       this._map[ctx.hash], ctx.options))
   }
-  (ctx.prefix || this.db).get(ctx.params.key, ctx.options, function (err, val) {
+  (ctx.sublevel || this.db).get(ctx.params.key, ctx.options, function (err, val) {
     if (self._released) return
     if (err && err.notFound) {
       self._notFound[ctx.hash] = true
