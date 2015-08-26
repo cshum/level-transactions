@@ -75,7 +75,7 @@ test('CRUD, isolation and defer', function (t) {
   })
 })
 
-test('SubLevel and Codec', function (t) {
+test('Prefix and Codec', function (t) {
   t.plan(11)
 
   var db = newDB()

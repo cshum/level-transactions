@@ -1,8 +1,8 @@
 # level-transactions
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
-two-phase locking, snapshot isolation, atomic commits, 
-[SublevelUP](https://github.com/cshum/sublevelup/) support.
+two-phase locking, snapshot isolation, atomic commits.
+Works well with [SublevelUP](https://github.com/cshum/sublevelup/).
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
@@ -141,32 +141,35 @@ tx.commit(function (err) {
 
 ```
 
-### SublevelUP prefix
+### SublevelUP
 
-Transaction works across [SublevelUP](https://github.com/cshum/sublevelup/) sections under the same database by adding the `prefix` property.
+Transaction works across [SublevelUP](https://github.com/cshum/sublevelup/) sections,
+by initiating transaction with sublevel `transaction(sub)`, or by adding the `prefix: sub` property.
 
 ```js
+var sublevel = require('sublevelup')
+var db = sublevel(level('db'))
 var sub = db.sublevel('sub')
-var tx = transaction(db)
 
+var tx = transaction(db) // initiate with db
 tx.put('foo', 'bar')
-tx.put('foo', 'foo', { prefix: sub })
-tx.get('foo', function (err, val) {
-  //val === 'bar'
-})
-tx.get('foo', { prefix: sub }, function (err, val) {
-  //val === 'foo'
-})
+tx.put('foo', 'foo', { prefix: sub }) // sublevel prefix
+tx.get('foo', function (err, val) {  }) // val === 'bar'
+tx.get('foo', { prefix: sub }, function (err, val) { }) // val === 'foo'
+
 tx.commit(function () {
-  db.get('foo', function (err, val) {
-    //val === 'bar'
-  })
-  sub.get('foo', function (err, val) {
-    //val === 'foo'
+  db.get('foo', function (err, val) { }) // val === 'bar'
+  sub.get('foo', function (err, val) { }) // val === 'foo'
+
+  var tx2 = transaction(sub) // initiate with sublevel
+  tx2.del('foo')
+  tx2.del('foo', { prefix: db }) // db prefix
+  tx2.commit(function () {
+    db.get('foo', function (err, val) { }) // err.notFound
+    sub.get('foo', function (err, val) { }) // err.notFound
   })
 })
 ```
-
 
 ## License
 
