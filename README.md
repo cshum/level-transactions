@@ -2,7 +2,7 @@
 
 Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
 two-phase locking, snapshot isolation, atomic commits.
-Works well with [SublevelUP](https://github.com/cshum/sublevelup/).
+Works with [SublevelUP](https://github.com/cshum/sublevelup/).
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
 
