@@ -12,6 +12,9 @@ function Transaction (db, opts) {
   if (!(this instanceof Transaction)) {
     return new Transaction(db, opts)
   }
+  if (db.toString() !== 'LevelUP') {
+    throw new Error('db must be LevelUP or SublevelUP instance.')
+  }
   this.db = db
   if (typeof db.sublevel === 'function' && db.options.db) {
     // all sublevels share same leveldown constructor
@@ -53,7 +56,7 @@ function pre (ctx, next) {
   next()
 }
 
-function lock (ctx, next, end) {
+function lock (ctx, next) {
   var self = this
 
   // options object
@@ -79,6 +82,9 @@ function lock (ctx, next, end) {
 
   this.defer(function (cb) {
     if (self._released) return
+
+    ctx.on('end', cb)
+
     if (self._taken[ctx.hash]) {
       next()
     } else {
@@ -93,7 +99,6 @@ function lock (ctx, next, end) {
         next()
       })
     }
-    end(cb)
   })
 
 }
@@ -160,15 +165,15 @@ function del (ctx, done) {
   done(null)
 }
 
-function commit (ctx, next, end) {
+function commit (ctx, next) {
   var self = this
   var done = false
 
-  end(function (err) {
+  ctx.on('end', function (err) {
     // rollback on commit error
     if (err) self.rollback(err)
   })
-  this.once('release', function (err) {
+  this.on('release', function (err) {
     if (!done) next(err)
   })
   var last = this._q[0]
