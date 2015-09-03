@@ -1,10 +1,10 @@
-var extend = require('extend')
+var xtend = require('xtend')
+var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
 var ginga = require('ginga')
 var semaphore = require('./semaphore')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
-var Queue = require('./queue')
 var error = require('./error')
 var params = ginga.params
 
@@ -15,14 +15,14 @@ function Transaction (db, opts) {
   this.db = db
   if (typeof db.sublevel === 'function' && db.options.db) {
     // all sublevels share same leveldown constructor
-    db.options.db._mutex = db.options.db._mutex || {}
-    this._mutex = db.options.db._mutex
+    db.options.db._shared = db.options.db._shared || {}
+    this._shared = db.options.db._shared
   } else {
-    db._mutex = db._mutex || {}
-    this._mutex = db._mutex
+    db._shared = db._shared || {}
+    this._shared = db._shared
   }
 
-  this.options = extend({
+  this.options = xtend({
     ttl: 20 * 1000
   }, db.options, opts)
 
@@ -34,8 +34,11 @@ function Transaction (db, opts) {
   this._notFound = {}
   this._batch = []
 
-  Queue.call(this)
   EventEmitter.call(this)
+  this.setMaxListeners(Infinity)
+
+  this._q = this._q || [semaphore(1)]
+  this._error = null
 
   this._timeout = setTimeout(
     this.rollback.bind(this, error.TX_TIMEOUT),
@@ -43,11 +46,7 @@ function Transaction (db, opts) {
   )
 }
 
-extend(
-  Transaction.prototype,
-  Queue.prototype,
-  EventEmitter.prototype
-)
+inherits(Transaction, EventEmitter)
 
 function pre (ctx, next) {
   if (this._released) return next(this._error || error.TX_RELEASED)
@@ -58,7 +57,7 @@ function lock (ctx, next, end) {
   var self = this
 
   // options object
-  ctx.options = extend({}, this.options, ctx.params.opts)
+  ctx.options = xtend(this.options, ctx.params.opts)
 
   // sublevel prefix
   if (ctx.options && ctx.options.prefix &&
@@ -84,7 +83,7 @@ function lock (ctx, next, end) {
       next()
     } else {
       // gain mutually exclusive access to transaction
-      var mu = self._mutex[ctx.hash] = self._mutex[ctx.hash] || semaphore(1)
+      var mu = self._shared[ctx.hash] = self._shared[ctx.hash] || semaphore(1)
       mu.take(function () {
         if (self._released) {
           mu.leave()
@@ -129,7 +128,7 @@ function get (ctx, done) {
 function put (ctx, done) {
   var enKey = this._codec.encodeKey(ctx.params.key, ctx.options)
   var enVal = this._codec.encodeValue(ctx.params.value, ctx.options)
-  this._batch.push(extend(ctx.options, {
+  this._batch.push(xtend(ctx.options, {
     type: 'put',
     key: enKey,
     value: enVal,
@@ -147,7 +146,7 @@ function put (ctx, done) {
 
 function del (ctx, done) {
   var enKey = this._codec.encodeKey(ctx.params.key, ctx.options)
-  this._batch.push(extend(ctx.options, {
+  this._batch.push(xtend(ctx.options, {
     type: 'del',
     key: enKey,
     keyEncoding: 'utf8'
@@ -172,10 +171,12 @@ function commit (ctx, next, end) {
   this.once('release', function (err) {
     if (!done) next(err)
   })
-  this.done(function (err) {
+  var last = this._q[0]
+  last.take(function () {
+    last.leave()
     done = true
     if (self._released) return
-    if (err) return next(err)
+    if (self._error) return next(self._error)
     self.db.batch(self._batch, function (err, res) {
       if (err) next(err)
       else next()
@@ -187,10 +188,9 @@ function commit (ctx, next, end) {
 function release (ctx, done) {
   clearTimeout(this._timeout)
 
-  var mutex = this._mutex
   for (var hash in this._taken) {
-    mutex[hash].leave()
-    if (mutex[hash].empty()) delete mutex[hash]
+    this._shared[hash].leave()
+    if (this._shared[hash].empty()) delete this._shared[hash]
   }
 
   delete this.options
@@ -201,6 +201,7 @@ function release (ctx, done) {
   delete this._notFound
 
   this._released = true
+  this.emit('close', this._error)
   this.emit('release', this._error)
   this.emit('end', this._error)
   done(this._error)
@@ -213,5 +214,28 @@ ginga(Transaction.prototype)
   .define('del', params('key', 'opts?'), pre, lock, del)
   .define('rollback', params('error?'), pre, abort, release)
   .define('commit', pre, commit, release)
+
+Transaction.prototype.defer = function (fn) {
+  var self = this
+  var sema = this._q[this._q.length - 1]
+  sema.take(function () {
+    if (self._error) {
+      return sema.leave()
+    }
+    self._q.push(semaphore(1))
+    fn(function (err) {
+      // notFound err wont block queue
+      if (err && !err.notFound) {
+        self._error = err
+      }
+      var sema2 = self._q.pop()
+      sema2.take(function () {
+        sema2.leave()
+        sema.leave()
+      })
+    })
+  })
+  return this
+}
 
 module.exports = Transaction

@@ -20,9 +20,10 @@
   "license": "MIT",
   "dependencies": {
     "extend": "^2.0.1",
-    "ginga": "^1.1.0",
+    "ginga": "^1.1.1",
     "level-codec": "^6.0.0",
-    "level-errors": "^1.0.3"
+    "level-errors": "^1.0.3",
+    "xtend": "^4.0.0"
   },
   "devDependencies": {
     "leveldown": "^1.4.1",
