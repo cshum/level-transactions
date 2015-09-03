@@ -79,8 +79,7 @@ function lock (ctx, next) {
     ctx.hash = ctx.sublevel.prefix + '\x00' + ctx.key
   } else {
     ctx.sublevel = null
-    ctx.hash = this.db.prefix ?
-      this.db.prefix + '\x00' + ctx.key : ctx.key
+    ctx.hash = (this.db.prefix || '') + '\x00' + ctx.key
   }
 
   this.defer(function (cb) {
@@ -138,16 +137,16 @@ function get (ctx, done) {
 }
 
 function put (ctx, done) {
-  var enVal = this._codec.encodeValue(ctx.value, ctx.options)
+  ctx.value = this._codec.encodeValue(ctx.value, ctx.options)
   this._batch.push(xtend(ctx.options, {
     type: 'put',
     key: ctx.key,
-    value: enVal,
+    value: ctx.value,
     keyEncoding: 'utf8',
     valueEncoding: 'utf8'
   }))
 
-  this._map[ctx.hash] = enVal
+  this._map[ctx.hash] = ctx.value
   delete this._notFound[ctx.hash]
 
   this.emit('put', ctx.key, ctx.value)
