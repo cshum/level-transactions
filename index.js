@@ -70,23 +70,17 @@ function lock (ctx, next) {
 
   // options object
   ctx.options = xtend(this.options, ctx.options)
+  ctx.key = String(this._codec.encodeKey(ctx.key, ctx.options))
 
-  // sublevel prefix
+  // key + sublevel prefix hash
   if (ctx.options && ctx.options.prefix &&
     typeof ctx.options.prefix.sublevel === 'function') {
     ctx.sublevel = ctx.options.prefix
-    ctx.hash = ctx.sublevel.prefix
+    ctx.hash = ctx.sublevel.prefix + '\x00' + ctx.key
   } else {
     ctx.sublevel = null
-    ctx.hash = this.db.prefix || ''
-  }
-
-  // key + sublevel prefix hash
-  // hash must not collide with key
-  if (ctx.lock) {
-    ctx.hash += '!h!' + String(this._codec.encodeKey(ctx.lock, ctx.options))
-  } else if (ctx.key) {
-    ctx.hash += '!k!' + String(this._codec.encodeKey(ctx.key, ctx.options))
+    ctx.hash = this.db.prefix ?
+      this.db.prefix + '\x00' + ctx.key : ctx.key
   }
 
   this.defer(function (cb) {
@@ -118,6 +112,9 @@ function abort (ctx) {
 
 function get (ctx, done) {
   var self = this
+  // patch keyEncoding
+  ctx.options.keyEncoding = 'utf8'
+
   if (this._notFound[ctx.hash]) {
     return done(new levelErrors.NotFoundError(
       'Key not found in transaction [' + ctx.key + ']'
@@ -127,6 +124,7 @@ function get (ctx, done) {
     return done(null, this._codec.decodeValue(
       this._map[ctx.hash], ctx.options))
   }
+
   (ctx.sublevel || this.db).get(ctx.key, ctx.options, function (err, val) {
     if (self._released) return
     if (err && err.notFound) {
@@ -140,11 +138,10 @@ function get (ctx, done) {
 }
 
 function put (ctx, done) {
-  var enKey = this._codec.encodeKey(ctx.key, ctx.options)
   var enVal = this._codec.encodeValue(ctx.value, ctx.options)
   this._batch.push(xtend(ctx.options, {
     type: 'put',
-    key: enKey,
+    key: ctx.key,
     value: enVal,
     keyEncoding: 'utf8',
     valueEncoding: 'utf8'
@@ -159,10 +156,9 @@ function put (ctx, done) {
 }
 
 function del (ctx, done) {
-  var enKey = this._codec.encodeKey(ctx.key, ctx.options)
   this._batch.push(xtend(ctx.options, {
     type: 'del',
-    key: enKey,
+    key: ctx.key,
     keyEncoding: 'utf8'
   }))
 
@@ -222,7 +218,7 @@ function release (ctx, done) {
 }
 
 ginga(Transaction.prototype)
-  .define('lock', params('lock', 'options'), pre, lock)
+  .define('lock', params('key', 'options'), pre, lock)
   .define('get', params('key', 'options'), pre, lock, get)
   .define('put', params('key', 'value', 'options'), pre, lock, put)
   .define('del', params('key', 'options'), pre, lock, del)
