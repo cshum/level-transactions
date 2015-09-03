@@ -6,7 +6,6 @@ var semaphore = require('./semaphore')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
 var error = require('./error')
-var params = ginga.params
 
 function Transaction (db, opts) {
   if (!(this instanceof Transaction)) {
@@ -51,6 +50,16 @@ function Transaction (db, opts) {
 
 inherits(Transaction, EventEmitter)
 
+// simpler ginga params middleware
+function params () {
+  var names = Array.prototype.slice.call(arguments)
+  var len = names.length
+  return function (ctx) {
+    var l = Math.min(ctx.args.length, len)
+    for (var i = 0; i < l; i++) ctx[names[i]] = ctx.args[i]
+  }
+}
+
 function pre (ctx, next) {
   if (this._released) return next(this._error || error.TX_RELEASED)
   next()
@@ -60,7 +69,7 @@ function lock (ctx, next) {
   var self = this
 
   // options object
-  ctx.options = xtend(this.options, ctx.params.opts)
+  ctx.options = xtend(this.options, ctx.options)
 
   // sublevel prefix
   if (ctx.options && ctx.options.prefix &&
@@ -74,10 +83,10 @@ function lock (ctx, next) {
 
   // key + sublevel prefix hash
   // hash must not collide with key
-  if (ctx.params.hash) {
-    ctx.hash += '!h!' + String(this._codec.encodeKey(ctx.params.hash, ctx.options))
-  } else if (ctx.params.key) {
-    ctx.hash += '!k!' + String(this._codec.encodeKey(ctx.params.key, ctx.options))
+  if (ctx.lock) {
+    ctx.hash += '!h!' + String(this._codec.encodeKey(ctx.lock, ctx.options))
+  } else if (ctx.key) {
+    ctx.hash += '!k!' + String(this._codec.encodeKey(ctx.key, ctx.options))
   }
 
   this.defer(function (cb) {
@@ -104,21 +113,21 @@ function lock (ctx, next) {
 }
 
 function abort (ctx) {
-  this._error = ctx.params.error
+  this._error = ctx.error
 }
 
 function get (ctx, done) {
   var self = this
   if (this._notFound[ctx.hash]) {
     return done(new levelErrors.NotFoundError(
-      'Key not found in transaction [' + ctx.params.key + ']'
+      'Key not found in transaction [' + ctx.key + ']'
     ))
   }
   if (ctx.hash in this._map) {
     return done(null, this._codec.decodeValue(
       this._map[ctx.hash], ctx.options))
   }
-  (ctx.sublevel || this.db).get(ctx.params.key, ctx.options, function (err, val) {
+  (ctx.sublevel || this.db).get(ctx.key, ctx.options, function (err, val) {
     if (self._released) return
     if (err && err.notFound) {
       self._notFound[ctx.hash] = true
@@ -131,8 +140,8 @@ function get (ctx, done) {
 }
 
 function put (ctx, done) {
-  var enKey = this._codec.encodeKey(ctx.params.key, ctx.options)
-  var enVal = this._codec.encodeValue(ctx.params.value, ctx.options)
+  var enKey = this._codec.encodeKey(ctx.key, ctx.options)
+  var enVal = this._codec.encodeValue(ctx.value, ctx.options)
   this._batch.push(xtend(ctx.options, {
     type: 'put',
     key: enKey,
@@ -144,13 +153,13 @@ function put (ctx, done) {
   this._map[ctx.hash] = enVal
   delete this._notFound[ctx.hash]
 
-  this.emit('put', ctx.params.key, ctx.params.value)
+  this.emit('put', ctx.key, ctx.value)
 
   done(null)
 }
 
 function del (ctx, done) {
-  var enKey = this._codec.encodeKey(ctx.params.key, ctx.options)
+  var enKey = this._codec.encodeKey(ctx.key, ctx.options)
   this._batch.push(xtend(ctx.options, {
     type: 'del',
     key: enKey,
@@ -160,7 +169,7 @@ function del (ctx, done) {
   delete this._map[ctx.hash]
   this._notFound[ctx.hash] = true
 
-  this.emit('del', ctx.params.key)
+  this.emit('del', ctx.key)
 
   done(null)
 }
@@ -213,11 +222,11 @@ function release (ctx, done) {
 }
 
 ginga(Transaction.prototype)
-  .define('lock', params('hash', 'opts?'), pre, lock)
-  .define('get', params('key', 'opts?'), pre, lock, get)
-  .define('put', params('key', 'value', 'opts?'), pre, lock, put)
-  .define('del', params('key', 'opts?'), pre, lock, del)
-  .define('rollback', params('error?'), pre, abort, release)
+  .define('lock', params('lock', 'options'), pre, lock)
+  .define('get', params('key', 'options'), pre, lock, get)
+  .define('put', params('key', 'value', 'options'), pre, lock, put)
+  .define('del', params('key', 'options'), pre, lock, del)
+  .define('rollback', params('error'), pre, abort, release)
   .define('commit', pre, commit, release)
 
 Transaction.prototype.defer = function (fn) {
