@@ -102,7 +102,6 @@ function lock (ctx, next) {
       })
     }
   })
-
 }
 
 function abort (ctx) {
