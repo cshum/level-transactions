@@ -50,7 +50,7 @@ function Transaction (db, opts) {
 
 inherits(Transaction, EventEmitter)
 
-// simpler ginga params middleware
+// ginga params middleware
 function params () {
   var names = Array.prototype.slice.call(arguments)
   var len = names.length
