@@ -75,10 +75,10 @@ function lock (ctx, next) {
   // key + sublevel prefix hash
   if (ctx.options && ctx.options.prefix &&
     typeof ctx.options.prefix.sublevel === 'function') {
-    ctx.sublevel = ctx.options.prefix
-    ctx.hash = ctx.sublevel.prefix + '\x00' + ctx.key
+    ctx.db = ctx.options.prefix
+    ctx.hash = ctx.db.prefix + '\x00' + ctx.key
   } else {
-    ctx.sublevel = null
+    ctx.db = this.db
     ctx.hash = (this.db.prefix || '') + '\x00' + ctx.key
   }
 
@@ -111,8 +111,6 @@ function abort (ctx) {
 
 function get (ctx, done) {
   var self = this
-  // patch keyEncoding
-  ctx.options.keyEncoding = 'utf8'
 
   if (this._notFound[ctx.hash]) {
     return done(new levelErrors.NotFoundError(
@@ -121,10 +119,13 @@ function get (ctx, done) {
   }
   if (ctx.hash in this._map) {
     return done(null, this._codec.decodeValue(
-      this._map[ctx.hash], ctx.options))
+      this._map[ctx.hash], ctx.options
+    ))
   }
+  // patch keyEncoding
+  ctx.options.keyEncoding = 'utf8'
 
-  (ctx.sublevel || this.db).get(ctx.key, ctx.options, function (err, val) {
+  ctx.db.get(ctx.key, ctx.options, function (err, val) {
     if (self._released) return
     if (err && err.notFound) {
       self._notFound[ctx.hash] = true
