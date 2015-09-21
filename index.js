@@ -82,6 +82,9 @@ function lock (ctx, next) {
     ctx.hash = (this.db.prefix || '') + '\x00' + ctx.key
   }
 
+  // unsafe: skip locking
+  if (ctx.options.unsafe === true) return next()
+
   this.defer(function (cb) {
     if (self._released) return
 
