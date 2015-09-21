@@ -65,7 +65,8 @@ level-transactions maintain stack + mutexes control to ensure linearizability:
 
 ### transaction(db, [options])
 
-Creates a transaction object. Takes an optional `options` argument, accepts properties from [levelup options](https://github.com/rvagg/node-levelup#options) plus following:
+Creates a transaction object. 
+Accepts `options` of [LevelUP](https://github.com/Level/levelup#options) plus following:
 * `ttl`: Time to live (milliseconds) of transaction object for liveness. Defaults to 20 seconds.
 
 ```js
@@ -75,22 +76,20 @@ var transaction = require('level-transactions')
 var tx = transaction(db)
 ```
 
+### tx.put(key, value, [options], [callback])
+
+### tx.del(key, [options], [callback])
+
+put/delete data into transaction object when lock acquired, 
+will only be applied upon successful commit.
+Accepts `options` of [LevelUP](https://github.com/Level/levelup#options).
+
 ### tx.get(key, [options], [callback])
 
 `get()` fetches data from store when lock acquired, 
 and callback with value or error.
 
 All errors except `NotFoundError` will cause a rollback, as non-exist item is not considered an error in transaction.
-
-### tx.put(key, value, [options], [callback])
-
-`put()` inserts/updates data into transaction object when lock acquired, 
-will only be applied upon successful commit. 
-
-### tx.del(key, [options], [callback])
-
-`del()` removes data from transaction object, 
-will only be applied upon successful commit. 
 
 ### tx.defer(task)
 
