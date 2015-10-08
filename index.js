@@ -11,9 +11,6 @@ function Transaction (db, opts) {
   if (!(this instanceof Transaction)) {
     return new Transaction(db, opts)
   }
-  if (db.toString() !== 'LevelUP') {
-    throw new Error('db must be LevelUP or SublevelUP instance.')
-  }
   this.db = db
   if (typeof db.sublevel === 'function' && db.options.db) {
     // all sublevels share same leveldown constructor
