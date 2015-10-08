@@ -17,13 +17,9 @@ function newDB () {
 }
 
 test('CRUD, isolation and defer', function (t) {
-  t.plan(17)
+  t.plan(16)
 
   var db = newDB()
-
-  t.throws(function () {
-    transaction({})
-  }, 'db must be LevelUP or SublevelUP instance.')
 
   var tx = transaction(db)
   var tx2 = transaction(db)
