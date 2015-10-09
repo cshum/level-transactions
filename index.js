@@ -47,6 +47,8 @@ function Transaction (db, opts) {
 
 inherits(Transaction, EventEmitter)
 
+var TX = ginga(Transaction.prototype)
+
 // ginga params middleware
 function params () {
   var names = Array.prototype.slice.call(arguments)
@@ -216,27 +218,15 @@ function release (ctx, done) {
   done(this._error)
 }
 
-ginga(Transaction.prototype)
-  .define('lock', params('key', 'options'), pre, lock)
-  .define('get', params('key', 'options'), pre, lock, get)
-  .define('put', params('key', 'value', 'options'), pre, lock, put)
-  .define('del', params('key', 'options'), pre, lock, del)
-  .define('rollback', params('error'), pre, abort, release)
-  .define('commit', pre, commit, release)
-
-Transaction.prototype.defer = function (fn) {
+TX.defer = function (fn) {
   var self = this
   var sema = this._q[this._q.length - 1]
   sema.take(function () {
-    if (self._error) {
-      return sema.leave()
-    }
+    if (self._error) return sema.leave()
     self._q.push(semaphore(1))
     fn(function (err) {
       // notFound err wont block queue
-      if (err && !err.notFound) {
-        self._error = err
-      }
+      if (err && !err.notFound) self._error = err
       var sema2 = self._q.pop()
       sema2.take(function () {
         sema2.leave()
@@ -246,5 +236,12 @@ Transaction.prototype.defer = function (fn) {
   })
   return this
 }
+
+TX.define('lock', params('key', 'options'), pre, lock)
+TX.define('get', params('key', 'options'), pre, lock, get)
+TX.define('put', params('key', 'value', 'options'), pre, lock, put)
+TX.define('del', params('key', 'options'), pre, lock, del)
+TX.define('rollback', params('error'), pre, abort, release)
+TX.define('commit', pre, commit, release)
 
 module.exports = Transaction
