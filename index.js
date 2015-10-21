@@ -2,7 +2,7 @@ var ginga = require('ginga')
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
-var semaphore = require('./semaphore')
+var semaphore = require('sema')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
 var error = require('./error')
@@ -202,7 +202,7 @@ function release (ctx, done) {
 
   for (var hash in this._taken) {
     this._shared[hash].leave()
-    if (this._shared[hash].empty()) delete this._shared[hash]
+    if (this._shared[hash].isEmpty()) delete this._shared[hash]
   }
 
   delete this.options
