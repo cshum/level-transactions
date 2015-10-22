@@ -19,6 +19,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "async-depth-first": "^1.0.0",
     "ginga": "^1.1.1",
     "level-codec": "^6.0.0",
     "level-errors": "^1.0.3",

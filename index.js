@@ -3,6 +3,7 @@ var xtend = require('xtend')
 var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
 var semaphore = require('sema')
+var async = require('async-depth-first')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
 var error = require('./error')
@@ -33,21 +34,21 @@ function Transaction (db, opts) {
   this._notFound = {}
   this._batch = []
 
-  EventEmitter.call(this)
-  this.setMaxListeners(Infinity)
-
-  this._q = this._q || [semaphore(1)]
+  this._async = async()
   this._error = null
 
   this._timeout = setTimeout(
     this.rollback.bind(this, error.TX_TIMEOUT),
     this.options.ttl
   )
+
+  EventEmitter.call(this)
+  this.setMaxListeners(Infinity)
 }
 
 inherits(Transaction, EventEmitter)
 
-var TX = ginga(Transaction.prototype)
+Transaction.fn = ginga(Transaction.prototype)
 
 // ginga params middleware
 function params () {
@@ -60,7 +61,7 @@ function params () {
 }
 
 function pre (ctx, next) {
-  if (this._released) return next(this._error || error.TX_RELEASED)
+  if (this._released) return next(error.TX_RELEASED)
   next()
 }
 
@@ -85,6 +86,7 @@ function lock (ctx, next) {
   if (ctx.options.unsafe === true) return next()
 
   this.defer(function (cb) {
+    // block async after released
     if (self._released) return
 
     ctx.on('end', cb)
@@ -104,10 +106,6 @@ function lock (ctx, next) {
       })
     }
   })
-}
-
-function abort (ctx) {
-  this._error = ctx.error
 }
 
 function get (ctx, done) {
@@ -173,21 +171,19 @@ function del (ctx, done) {
 
 function commit (ctx, next) {
   var self = this
-  var done = false
-
+  var ended = false
   ctx.on('end', function (err) {
     // rollback on commit error
     if (err) self.rollback(err)
   })
-  this.on('release', function (err) {
-    if (!done) next(err)
+  this.on('end', function (err) {
+    // ended before commit
+    if (!ended) next(err)
   })
-  var last = this._q[0]
-  last.take(function () {
-    last.leave()
-    done = true
+  this._async.done(function (err) {
+    ended = true
     if (self._released) return
-    if (self._error) return next(self._error)
+    if (err) return next(err)
     self.db.batch(self._batch, function (err, res) {
       if (err) next(err)
       else next()
@@ -195,7 +191,11 @@ function commit (ctx, next) {
   })
 }
 
-// release after rollback, commit
+function rollback (ctx) {
+  this._error = ctx.error
+}
+
+// release after rollback or commit
 function release (ctx, done) {
   clearTimeout(this._timeout)
 
@@ -204,6 +204,7 @@ function release (ctx, done) {
     if (this._shared[hash].isEmpty()) delete this._shared[hash]
   }
 
+  this._released = true
   delete this.options
   delete this._codec
   delete this._taken
@@ -211,37 +212,30 @@ function release (ctx, done) {
   delete this._batch
   delete this._notFound
 
-  this._released = true
   this.emit('close', this._error)
   this.emit('release', this._error)
   this.emit('end', this._error)
   done(this._error)
 }
 
-TX.defer = function (fn) {
+Transaction.fn.defer = function (fn) {
   var self = this
-  var sema = this._q[this._q.length - 1]
-  sema.take(function () {
-    if (self._error) return sema.leave()
-    self._q.push(semaphore(1))
+  this._async.defer(function (cb) {
     fn(function (err) {
-      // notFound err wont block queue
-      if (err && !err.notFound) self._error = err
-      var sema2 = self._q.pop()
-      sema2.take(function () {
-        sema2.leave()
-        sema.leave()
-      })
+      // notFound error wont block async
+      if (!err || err.notFound) return cb()
+      self._error = err
+      cb(err)
     })
   })
   return this
 }
 
-TX.define('lock', params('key', 'options'), pre, lock)
-TX.define('get', params('key', 'options'), pre, lock, get)
-TX.define('put', params('key', 'value', 'options'), pre, lock, put)
-TX.define('del', params('key', 'options'), pre, lock, del)
-TX.define('rollback', params('error'), pre, abort, release)
-TX.define('commit', pre, commit, release)
+Transaction.fn.define('lock', params('key', 'options'), pre, lock)
+Transaction.fn.define('get', params('key', 'options'), pre, lock, get)
+Transaction.fn.define('put', params('key', 'value', 'options'), pre, lock, put)
+Transaction.fn.define('del', params('key', 'options'), pre, lock, del)
+Transaction.fn.define('rollback', params('error'), pre, rollback, release)
+Transaction.fn.define('commit', pre, commit, release)
 
 module.exports = Transaction
