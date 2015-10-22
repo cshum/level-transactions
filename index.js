@@ -3,7 +3,7 @@ var xtend = require('xtend')
 var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
 var semaphore = require('sema')
-var async = require('async-depth-first')
+var depthFirst = require('async-depth-first')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
 var error = require('./error')
@@ -34,7 +34,7 @@ function Transaction (db, opts) {
   this._notFound = {}
   this._batch = []
 
-  this._async = async()
+  this._async = depthFirst()
   this._error = null
 
   this._timeout = setTimeout(
