@@ -140,7 +140,7 @@ tx.commit(function (err) {
 
 ```
 
-### SublevelUP
+### Sublevel
 
 Transaction works across [SublevelUP](https://github.com/cshum/sublevelup/) sections,
 by initiating transaction with sublevel `transaction(sub)`, or by adding the `prefix: sub` property.
@@ -151,23 +151,17 @@ var db = sublevel(level('db'))
 var sub = db.sublevel('sub')
 
 var tx = transaction(db) // initiate with db
-tx.put('foo', 'bar')
-tx.put('foo', 'foo', { prefix: sub }) // sublevel prefix
-tx.get('foo', function (err, val) {  }) // val === 'bar'
-tx.get('foo', { prefix: sub }, function (err, val) { }) // val === 'foo'
+tx.put('foo', 'bar') // put db
+tx.put('foo', 'foo', { prefix: sub }) // put sub
+tx.get('foo', cb) // get db
+tx.get('foo', { prefix: sub }, cb) // get sub
 
-tx.commit(function () {
-  db.get('foo', function (err, val) { }) // val === 'bar'
-  sub.get('foo', function (err, val) { }) // val === 'foo'
+var tx2 = transaction(sub) // initiate with sublevel
+tx.put('foo', 'hello') // put sub
+tx.put('foo', 'world', { prefix: db }) // put db
+tx.get('foo', cb) // get sub
+tx.get('foo', { prefix: db }, cb) // get db
 
-  var tx2 = transaction(sub) // initiate with sublevel
-  tx2.del('foo')
-  tx2.del('foo', { prefix: db }) // db prefix
-  tx2.commit(function () {
-    db.get('foo', function (err, val) { }) // err.notFound
-    sub.get('foo', function (err, val) { }) // err.notFound
-  })
-})
 ```
 
 ## License
