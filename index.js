@@ -2,31 +2,33 @@ var ginga = require('ginga')
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
-var semaphore = require('sema')
 var depthFirst = require('async-depth-first')
 var levelErrors = require('level-errors')
 var Codec = require('level-codec')
-var error = require('./error')
+var lockCreator = require('2pl').creator
 
 function Transaction (db, opts) {
   if (!(this instanceof Transaction)) {
     return new Transaction(db, opts)
   }
   this.db = db
-  if (typeof db.sublevel === 'function' && db.options.db) {
+
+  var createLock
+  if (db.options.lock) {
+    // custom lock factory exists
+    createLock = db.options.lock
+  } else if (typeof db.sublevel === 'function' && db.options.db) {
     // all sublevels share same leveldown constructor
-    db.options.db._shared = db.options.db._shared || {}
-    this._shared = db.options.db._shared
+    createLock = db.options.db._lock = db.options.db._lock || lockCreator()
   } else {
-    db._shared = db._shared || {}
-    this._shared = db._shared
+    createLock = db._lock = db._lock || lockCreator()
   }
 
   this.options = xtend({
     ttl: 20 * 1000
   }, db.options, opts)
 
-  this._released = false
+  this._lock = createLock(this.options)
 
   this._codec = new Codec(this.options)
   this._taken = {}
@@ -36,11 +38,6 @@ function Transaction (db, opts) {
 
   this._async = depthFirst()
   this._error = null
-
-  this._timeout = setTimeout(
-    this.rollback.bind(this, error.TX_TIMEOUT),
-    this.options.ttl
-  )
 
   EventEmitter.call(this)
   this.setMaxListeners(Infinity)
@@ -60,13 +57,13 @@ function params () {
   }
 }
 
-function pre (ctx, next) {
-  if (this._released) return next(error.TX_RELEASED)
-  next()
-}
-
 function lock (ctx, next) {
   var self = this
+
+  ctx.on('end', function (err) {
+    // rollback on error except notFound
+    if (err && !err.notFound) self.rollback(err)
+  })
 
   // options object
   ctx.options = xtend(this.options, ctx.options)
@@ -86,21 +83,16 @@ function lock (ctx, next) {
   if (ctx.options.unsafe === true) return next()
 
   this.defer(function (cb) {
-    // block async after released
-    if (self._released) return
-
     ctx.on('end', cb)
 
     if (self._taken[ctx.hash]) {
       next()
     } else {
       // gain mutually exclusive access to transaction
-      var mu = self._shared[ctx.hash] = self._shared[ctx.hash] || semaphore(1)
-      mu.take(function () {
-        if (self._released) {
-          mu.leave()
-          return
-        }
+      self._lock.acquire(ctx.hash, function (err) {
+        // dont callback if released
+        if (err && err.RELEASED) return
+        if (err) return next(err)
         self._taken[ctx.hash] = true
         next()
       })
@@ -125,7 +117,6 @@ function get (ctx, done) {
   ctx.options.keyEncoding = 'utf8'
 
   ctx.db.get(ctx.key, ctx.options, function (err, val) {
-    if (self._released) return
     if (err && err.notFound) {
       self._notFound[ctx.hash] = true
       delete self._map[ctx.hash]
@@ -173,8 +164,8 @@ function commit (ctx, next) {
   var self = this
   var ended = false
   ctx.on('end', function (err) {
-    // rollback on commit error
-    if (err) self.rollback(err)
+    // rollback on error except notFound
+    if (err && !err.notFound) self.rollback(err)
   })
   this.on('end', function (err) {
     // ended before commit
@@ -182,11 +173,15 @@ function commit (ctx, next) {
   })
   this._async.done(function (err) {
     ended = true
-    if (self._released) return
+    // todo lock extend
     if (err) return next(err)
-    self.db.batch(self._batch, function (err, res) {
-      if (err) next(err)
-      else next()
+    self._lock.extend(self.options.ttl, function (err) {
+      if (err) return next(err)
+      // attempt to extend lock to ensure validity
+      self.db.batch(self._batch, function (err, res) {
+        if (err) next(err)
+        else next()
+      })
     })
   })
 }
@@ -197,25 +192,16 @@ function rollback (ctx) {
 
 // release after rollback or commit
 function release (ctx, done) {
-  clearTimeout(this._timeout)
 
-  for (var hash in this._taken) {
-    this._shared[hash].leave()
-    if (this._shared[hash].isEmpty()) delete this._shared[hash]
-  }
+  var self = this
+  ctx.on('end', function (err) {
+    if (err) return
+    self.emit('close', self._error)
+    self.emit('release', self._error)
+    self.emit('end', self._error)
+  })
 
-  this._released = true
-  delete this.options
-  delete this._codec
-  delete this._taken
-  delete this._map
-  delete this._batch
-  delete this._notFound
-
-  this.emit('close', this._error)
-  this.emit('release', this._error)
-  this.emit('end', this._error)
-  done(this._error)
+  this._lock.release(done)
 }
 
 Transaction.fn.defer = function (fn) {
@@ -231,11 +217,11 @@ Transaction.fn.defer = function (fn) {
   return this
 }
 
-Transaction.fn.define('lock', params('key', 'options'), pre, lock)
-Transaction.fn.define('get', params('key', 'options'), pre, lock, get)
-Transaction.fn.define('put', params('key', 'value', 'options'), pre, lock, put)
-Transaction.fn.define('del', params('key', 'options'), pre, lock, del)
-Transaction.fn.define('rollback', params('error'), pre, rollback, release)
-Transaction.fn.define('commit', pre, commit, release)
+Transaction.fn.define('lock', params('key', 'options'), lock)
+Transaction.fn.define('get', params('key', 'options'), lock, get)
+Transaction.fn.define('put', params('key', 'value', 'options'), lock, put)
+Transaction.fn.define('del', params('key', 'options'), lock, del)
+Transaction.fn.define('rollback', params('error'), rollback, release)
+Transaction.fn.define('commit', commit, release)
 
 module.exports = Transaction

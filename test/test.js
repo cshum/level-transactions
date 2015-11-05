@@ -185,14 +185,14 @@ test('TTL', function (t) {
   })
 
   tx.commit(function (err) {
-    t.ok(err.txTimeout, 'error timeout')
+    t.ok(err.TIMEOUT, 'error timeout')
     db.get('b', function (err, value) {
       t.ok(err.notFound)
       t.notOk(value, 'tx no put')
     })
   })
   tx2.commit(function (err) {
-    t.ok(err.txTimeout, 'error timeout')
+    t.ok(err.TIMEOUT, 'error timeout')
     db.get('a', function (err, value) {
       t.ok(err.notFound)
       t.notOk(value, 'tx2 no put')
@@ -215,7 +215,7 @@ test('TTL', function (t) {
   }, 100)
 })
 
-test('Lock', function (t) {
+test('Lock()', function (t) {
   t.plan(6)
 
   var db = newDB()
@@ -311,8 +311,8 @@ test('Defer error', function (t) {
   tx.on('end', function (err) {
     t.equal(err, 'booom', 'end error')
   })
-  tx.put('167', 199, function () {
-    t.error('should not continue after booom')
+  tx.put('167', 199, function (err) {
+    t.error(err, 'should not continue after booom')
   })
   tx.commit(function (err) {
     t.equal(err, 'booom', 'defer error')
@@ -343,8 +343,8 @@ test('Rollback', function (t) {
     t.notOk(err, 'no error before booom')
     tx.rollback('booom')
   })
-  tx.put('167', 199, function () {
-    t.error('should not continue after booom')
+  tx.put('167', 199, function (err) {
+    t.error(err, 'should not continue after booom')
   })
   tx.commit(function (err) {
     t.equal(err, 'booom', 'defer error')
