@@ -8,9 +8,7 @@ var Codec = require('level-codec')
 var lockCreator = require('2pl').creator
 
 function Transaction (db, opts) {
-  if (!(this instanceof Transaction)) {
-    return new Transaction(db, opts)
-  }
+  if (!(this instanceof Transaction)) return new Transaction(db, opts)
   this.db = db
 
   var createLock
@@ -79,11 +77,11 @@ function lock (ctx, next) {
     ctx.hash = (this.db.prefix || '') + '\x00' + ctx.key
   }
 
-  // unsafe: skip locking
-  if (ctx.options.unsafe === true) return next()
-
   this.defer(function (cb) {
     ctx.on('end', cb)
+
+    // unsafe: skip locking
+    if (ctx.options.unsafe === true) return next()
 
     if (self._taken[ctx.hash]) {
       next()
@@ -165,7 +163,7 @@ function commit (ctx, next) {
   var ended = false
   ctx.on('end', function (err) {
     // rollback on error except notFound
-    if (err && !err.notFound) self.rollback(err)
+    if (err) self.rollback(err)
   })
   this.on('end', function (err) {
     // ended before commit
@@ -192,7 +190,6 @@ function rollback (ctx) {
 
 // release after rollback or commit
 function release (ctx, done) {
-
   var self = this
   ctx.on('end', function (err) {
     if (err) return
