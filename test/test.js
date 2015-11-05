@@ -3,6 +3,7 @@ var levelup = require('levelup')
 var sublevel = require('sublevelup')
 var leveldown = require('leveldown')
 var transaction = require('../')
+var lock = require('2pl')
 
 require('rimraf').sync('test/db')
 
@@ -12,15 +13,11 @@ var db = sublevel(levelup('test/db', {
   valueEncoding: 'json'
 }))
 var count = 0
-function newDB () {
-  return db.sublevel(String(count++))
+function newDB (opts) {
+  return db.sublevel(String(count++), opts)
 }
 
-test('CRUD, isolation and defer', function (t) {
-  t.plan(16)
-
-  var db = newDB()
-
+function crud (t, db) {
   var tx = transaction(db)
   var tx2 = transaction(db)
   tx.on('end', function (err) {
@@ -68,11 +65,21 @@ test('CRUD, isolation and defer', function (t) {
           db.get('k', function (err, data) {
             t.notOk(err)
             t.equal(data, 168, 'tx2 commit, value equals tx2 increment')
+            t.end()
           })
         })
       })
     })
   })
+}
+
+test('CRUD', function (t) {
+  crud(t, newDB())
+})
+
+test('CRUD custom 2PL', function (t) {
+  var db = newDB({ lock: lock.creator() })
+  crud(t, db)
 })
 
 test('Prefix and Codec', function (t) {

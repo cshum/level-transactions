@@ -12,7 +12,7 @@ function Transaction (db, opts) {
   this.db = db
 
   var createLock
-  if (db.options.lock) {
+  if (typeof db.options.lock === 'function') {
     // custom lock factory exists
     createLock = db.options.lock
   } else if (typeof db.sublevel === 'function' && db.options.db) {
