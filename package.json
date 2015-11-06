@@ -21,7 +21,7 @@
   "dependencies": {
     "2pl": "^1.1.1",
     "async-depth-first": "^1.0.0",
-    "ginga": "^1.1.1",
+    "ginga": "^2.0.2",
     "level-codec": "^6.0.0",
     "level-errors": "^1.0.3",
     "sema": "^1.0.0",
