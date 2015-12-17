@@ -85,7 +85,7 @@ test('CRUD custom 2PL', function (t) {
   setTimeout(function () {
     t.ok(Object.keys(l._shared).length, 'Lock exists')
     l.release()
-  })
+  }, 50)
 })
 
 test('Prefix and Codec', function (t) {
