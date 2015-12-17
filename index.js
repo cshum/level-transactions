@@ -12,14 +12,14 @@ function Transaction (db, opts) {
   this.db = db
 
   var createLock
-  if (typeof db.options.lock === 'function') {
+  if (typeof db.options.createLock === 'function') {
     // custom lock factory exists
-    createLock = db.options.lock
+    createLock = db.options.createLock
   } else if (typeof db.sublevel === 'function' && db.options.db) {
     // all sublevels share same leveldown constructor
-    createLock = db.options.db._lock = db.options.db._lock || lockCreator()
+    createLock = db.options.db._createLock = db.options.db._createLock || lockCreator()
   } else {
-    createLock = db._lock = db._lock || lockCreator()
+    createLock = db._createLock = db._createLock || lockCreator()
   }
 
   this.options = xtend({
