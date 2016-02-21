@@ -71,10 +71,10 @@ function lock (ctx, next) {
   if (ctx.options && ctx.options.prefix &&
     typeof ctx.options.prefix.sublevel === 'function') {
     ctx.db = ctx.options.prefix
-    ctx.hash = ctx.db.prefix + '\x00' + ctx.key
+    ctx.hash = ctx.db.location + '\x00' + ctx.key
   } else {
     ctx.db = this.db
-    ctx.hash = (this.db.prefix || '') + '\x00' + ctx.key
+    ctx.hash = (this.db.location || '') + '\x00' + ctx.key
   }
 
   this.defer(function (cb) {

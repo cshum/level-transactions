@@ -1,6 +1,6 @@
 {
   "name": "level-transactions",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
@@ -21,18 +21,18 @@
   "dependencies": {
     "2pl": "^1.1.1",
     "async-depth-first": "^1.0.0",
-    "ginga": "^2.0.2",
+    "ginga": "^3.0.2",
     "level-codec": "^6.0.0",
     "level-errors": "^1.0.3",
     "sema": "^1.0.0",
-    "xtend": "^4.0.0"
+    "xtend": "^4.0.1"
   },
   "devDependencies": {
-    "leveldown": "^1.4.1",
-    "levelup": "^1.2.1",
+    "leveldown": "^1.4.4",
+    "levelup": "^1.3.1",
     "rimraf": "^2.4.2",
     "standard": "^5.1.0",
-    "sublevelup": "^3.0.4",
+    "sublevelup": "^3.1.3",
     "tape": "^3.0.3"
   }
 }
