@@ -78,8 +78,14 @@ test('CRUD', function (t) {
 })
 
 test('CRUD custom 2PL', function (t) {
-  var db = newDB({ lock: lock.creator() })
-  crud(t, db)
+  var createLock = lock.creator()
+  crud(t, newDB({ createLock: createLock }))
+
+  var l = createLock()
+  setTimeout(function () {
+    t.ok(Object.keys(l._shared).length, 'Lock exists')
+    l.release()
+  }, 50)
 })
 
 test('Prefix and Codec', function (t) {
