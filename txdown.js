@@ -1,13 +1,15 @@
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var EventEmitter = require('events').EventEmitter
-var depthFirst = require('async-depth-first')
+var queue = require('async-depth-first')
 var Codec = require('level-codec')
 var lockCreator = require('2pl').creator
 var abs = require('abstract-leveldown')
 var iterate = require('stream-iterate')
 
 var END = '\uffff'
+
+function noop () {}
 
 function concat (prefix, key) {
   if (typeof key === 'string') {
@@ -26,11 +28,15 @@ function encoding (o) {
   })
 }
 
+function isNotFoundError (err) {
+  return err && ((/notfound/i).test(err) || err.notFound)
+}
+
 function ltgt (prefix, x) {
   var r = !!x.reverse
-  var at = {};
+  var at = {}
 
-  ['lte', 'gte', 'lt', 'gt', 'start', 'end'].forEach(function (key) {
+  ;['lte', 'gte', 'lt', 'gt', 'start', 'end'].forEach(function (key) {
     at[key] = x[key]
     delete x[key]
   })
@@ -165,50 +171,148 @@ TxDown.prototype._open = function (options, callback) {
   this._lock = createLock(this.options)
 
   this._codec = new Codec(this.options)
-  this._taken = {}
-  this._map = {}
-  this._notFound = {}
-  this._batch = []
+  this._acquired = {}
 
-  this._async = depthFirst()
+  this._store = {}
+  this._log = []
+  this._notFound = {}
+
+  this._queue = queue()
   this._error = null
 
   process.nextTick(callback)
 }
 
+TxDown.prototype._lock = function (key, fn, cb) {
+  var self = this
+  cb = cb || noop
+  this._queue.defer(function (done) {
+    function next (err) {
+      if (err && !isNotFoundError(err)) {
+        self._error = err
+        // error breaks queue except notFoud err
+        cb(err)
+        done(err)
+      } else {
+        cb.apply(self, arguments)
+        done()
+      }
+    }
+    if (self._acquired[key]) {
+      fn(next)
+    } else {
+      self._lock.acquire(key, function (err) {
+        if (err && err.RELEASED) return
+        if (err) return done(err)
+        self._acquired[key] = true
+        fn(next)
+      })
+    }
+  })
+}
+
 TxDown.prototype._put = function (key, value, options, cb) {
+  var self = this
+  key = concat(this.location, key)
+
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
   }
-  this.db.put(concat(this.location, key), value, encoding(options), cb)
+
+  this._lock(key, function (next) {
+    self._log.push(xtend({
+      type: 'put',
+      key: key,
+      value: value
+    }, encoding(options)))
+
+    self._store[key] = value
+    delete self._notFound[key]
+
+    next()
+  }, cb)
 }
 
 TxDown.prototype._get = function (key, options, cb) {
-  this.db.get(concat(this.location, key), encoding(options), cb)
+  var self = this
+  key = concat(this.location, key)
+
+  this._lock(key, function (next) {
+    if (self._notFound[key]) {
+      return next(new Error('NotFound'))
+    } else {
+      self.db.get(key, encoding(options), function (err, val) {
+        if (err && err.notFound) {
+          self._notFound[key] = true
+          delete self._store[key]
+        } else {
+          self._store[key] = val
+        }
+        next.apply(self, arguments)
+      })
+    }
+  }, cb)
 }
 
 TxDown.prototype._del = function (key, options, cb) {
-  this.db.del(concat(this.location, key), encoding(options), cb)
+  var self = this
+  key = concat(this.location, key)
+
+  this._lock(key, function (next) {
+    self._log.push(xtend({
+      type: 'del',
+      key: key
+    }, encoding(options)))
+
+    delete self._store[key]
+    self._notFound[key] = true
+
+    next()
+  }, cb)
 }
 
 TxDown.prototype._batch = function (operations, options, cb) {
-  if (arguments.length === 0) return new abs.AbstractChainedBatch(this)
-  if (!Array.isArray(operations)) return this.db.batch.apply(null, arguments)
-
-  var ops = new Array(operations.length)
-  for (var i = 0, l = operations.length; i < l; i++) {
-    var o = operations[i]
-    var isValBuf = Buffer.isBuffer(o.value)
-    var isKeyBuf = Buffer.isBuffer(o.key)
-    ops[i] = {
-      type: o.type,
-      key: concat(this._getPrefix(o), o.key),
-      value: isValBuf ? o.value : String(o.value),
-      keyEncoding: isKeyBuf ? 'binary' : 'utf8',
-      valueEncoding: isValBuf ? 'binary' : 'utf8'
-    }
+  if (arguments.length === 0) {
+    return new abs.AbstractChainedBatch(this)
   }
-  this.db.batch(ops, options, cb)
+  if (!Array.isArray(operations)) {
+    return this.db.batch.apply(null, arguments)
+  }
+  var self = this
+  operations.forEach(function (o) {
+    var key = concat(self._getPrefix(o), o.key)
+    var isKeyBuf = Buffer.isBuffer(o.key)
+    if (o.type === 'put') {
+      var isValBuf = Buffer.isBuffer(o.value)
+      var value = o.value
+      if (value === null || value === undefined) {
+        value = isValBuf ? Buffer(0) : ''
+      }
+      self._lock(key, function (next) {
+        self._log.push({
+          type: 'put',
+          key: key,
+          value: value,
+          keyEncoding: isKeyBuf ? 'binary' : 'utf8',
+          valueEncoding: isValBuf ? 'binary' : 'utf8'
+        })
+        next()
+      })
+    } else if (o.type === 'del') {
+      self._lock(key, function (next) {
+        self._log.push({
+          type: 'del',
+          key: key,
+          keyEncoding: isKeyBuf ? 'binary' : 'utf8'
+        })
+        next()
+      })
+    }
+  })
+  self._queue.defer(function (done) {
+    cb()
+    done()
+  })
 }
 
 TxDown.prototype._iterator = function (options) {
@@ -219,11 +323,33 @@ TxDown.prototype._isBuffer = function (obj) {
   return Buffer.isBuffer(obj)
 }
 
-TxDown.prototype._commit = function (callback) {
+TxDown.prototype._commit = function (cb) {
+  var self = this
+  cb = cb || noop
+  function next (err) {
+    self._error = err
+    self._lock.release(function (err) {
+      cb(err || self._error)
+    })
+  }
+  this._queue.done(function (err) {
+    if (err) return next(err)
+    self._lock.extend(self.options.ttl, function (err) {
+      if (err) return next(err)
+      self.db.batch(self._log, next)
+    })
+  })
 }
 
-Tx.Down.prototype._close = function (callback) {
-  // close = rollback
+TxDown.prototype._close = function (cb) {
+  cb = cb || noop
+  this._lock.release(cb)
+}
+
+TxDown.prototype._rollback = function (err, cb) {
+  this._error = err
+  cb = cb || noop
+  this._lock.release(cb)
 }
 
 module.exports = TxDown
