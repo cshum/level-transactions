@@ -20,6 +20,9 @@ function newDB (opts) {
 function crud (t, db) {
   var tx = transaction(db)
   var tx2 = transaction(db)
+  t.equal(tx.levelup.toString(), 'LevelUP', 'levelup instance')
+  t.equal(tx.levelup, tx2.levelup, 'same levelup for tx instances')
+
   tx.on('end', function (err) {
     t.notOk(err, 'tx end no error')
   })

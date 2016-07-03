@@ -5,7 +5,7 @@ var abs = require('abstract-leveldown')
 var iterate = require('stream-iterate')
 
 var END = '\uffff'
-var BATCH_TTL = 5 * 1000
+var BATCH_TTL = 10 * 1000
 
 function noop () {}
 
@@ -318,14 +318,13 @@ TxDown.prototype.commit = function (cb) {
   cb = cb || noop
   function next (err) {
     self._error = err
-    self._lock.release(function (err) {
-      cb(err || self._error)
-    })
+    self.close(cb)
   }
   this._queue.done(function (err) {
     if (err) return next(err)
     self._lock.extend(BATCH_TTL, function (err) {
       if (err) return next(err)
+      console.log(self._log)
       self.db.batch(self._log, next)
     })
   })
@@ -334,7 +333,7 @@ TxDown.prototype.commit = function (cb) {
 TxDown.prototype.rollback = function (err, cb) {
   this._error = err
   cb = cb || noop
-  this._lock.release(cb)
+  this.close(cb)
 }
 
 module.exports = TxDown
