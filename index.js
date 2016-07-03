@@ -41,11 +41,11 @@ function Transaction (db, options) {
   // init txdown
   if (db instanceof Transaction) {
     // db is Transaction, get its levelup
-    this.levelup = db.levelup
+    this._levelup = db._levelup
     options.db = txdown(db.levelup, createLock(options))
   } else {
     // db is LevelUP, wrap txdown
-    this.levelup = db
+    this._levelup = db
     options.db = txdown(db, createLock(options))
   }
 
