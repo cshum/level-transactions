@@ -1,13 +1,11 @@
 var xtend = require('xtend')
 var inherits = require('util').inherits
-var EventEmitter = require('events').EventEmitter
 var queue = require('async-depth-first')
-var Codec = require('level-codec')
-var lockCreator = require('2pl').creator
 var abs = require('abstract-leveldown')
 var iterate = require('stream-iterate')
 
 var END = '\uffff'
+var BATCH_TTL = 5 * 1000
 
 function noop () {}
 
@@ -107,22 +105,31 @@ function isLevelUP (db) {
   )
 }
 
-function TxDown (db, location) {
-  if (isLevelUP(db)) {
-    if (arguments.length === 1) {
-      // LeveUP defined factory
-      return function (location) {
-        return TxDown(db, location)
-      }
+function TxDown (db, lock, location) {
+  if (!isLevelUP(db)) {
+    throw new Error('db must be a levelup instance')
+  }
+  if (arguments.length < 3) {
+    // LeveUP defined factory
+    return function (location) {
+      return new TxDown(db, lock, location)
     }
-  } else if (typeof db === 'string') {
-    location = db 
-    db = null
+  }
+  if (!(this instanceof TxDown)) {
+    return new TxDown(db, lock, location)
   }
 
-  if (!(this instanceof TxDown)) return new TxDown(db, location)
-
   this.db = db
+  this._lock = lock
+  this._acquired = {}
+
+  this._store = {}
+  this._log = []
+  this._notFound = {}
+
+  this._queue = queue()
+  this._error = null
+
   abs.AbstractLevelDOWN.call(this, location)
 }
 
@@ -139,7 +146,7 @@ TxDown.prototype._getPrefix = function (options) {
     // levelup of prefixdown prefix
     if (isLevelUP(prefix)) {
       // levelup v2
-      if (prefix._db instanceof TxDown) return prefix._db.location
+      // if (prefix._db instanceof TxDown) return prefix._db.location
       // levelup v1
       if (prefix.options && prefix.options.db) return prefix.location
     }
@@ -147,43 +154,13 @@ TxDown.prototype._getPrefix = function (options) {
   return this.location
 }
 
-TxDown.prototype._open = function (options, callback) {
-  this.db = this.db || options.levelup
-  if (!isLevelUP(this.db)) {
-    return callback(new Error('db must be a LevelUP instance.'))
-  }
+// TxDown.prototype._open = function (options, callback) {
+//   this.options = options
+//
+//   process.nextTick(callback)
+// }
 
-  var createLock
-  if (typeof db.options.createLock === 'function') {
-    // custom lock factory exists
-    createLock = db.options.createLock
-  } else if (typeof db.sublevel === 'function' && db.options.db) {
-    // all sublevels share same leveldown constructor
-    createLock = db.options.db._createLock = db.options.db._createLock || lockCreator()
-  } else {
-    createLock = db._createLock = db._createLock || lockCreator()
-  }
-
-  this.options = xtend({
-    ttl: 20 * 1000
-  }, db.options, options)
-
-  this._lock = createLock(this.options)
-
-  this._codec = new Codec(this.options)
-  this._acquired = {}
-
-  this._store = {}
-  this._log = []
-  this._notFound = {}
-
-  this._queue = queue()
-  this._error = null
-
-  process.nextTick(callback)
-}
-
-TxDown.prototype._lock = function (key, fn, cb) {
+TxDown.prototype._keyLock = function (key, fn, cb) {
   var self = this
   cb = cb || noop
   this._queue.defer(function (done) {
@@ -219,7 +196,7 @@ TxDown.prototype._put = function (key, value, options, cb) {
     value = options.asBuffer ? Buffer(0) : ''
   }
 
-  this._lock(key, function (next) {
+  this._keyLock(key, function (next) {
     self._log.push(xtend({
       type: 'put',
       key: key,
@@ -237,7 +214,7 @@ TxDown.prototype._get = function (key, options, cb) {
   var self = this
   key = concat(this.location, key)
 
-  this._lock(key, function (next) {
+  this._keyLock(key, function (next) {
     if (self._notFound[key]) {
       return next(new Error('NotFound'))
     } else {
@@ -258,7 +235,7 @@ TxDown.prototype._del = function (key, options, cb) {
   var self = this
   key = concat(this.location, key)
 
-  this._lock(key, function (next) {
+  this._keyLock(key, function (next) {
     self._log.push(xtend({
       type: 'del',
       key: key
@@ -288,7 +265,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       if (value === null || value === undefined) {
         value = isValBuf ? Buffer(0) : ''
       }
-      self._lock(key, function (next) {
+      self._keyLock(key, function (next) {
         self._log.push({
           type: 'put',
           key: key,
@@ -296,15 +273,23 @@ TxDown.prototype._batch = function (operations, options, cb) {
           keyEncoding: isKeyBuf ? 'binary' : 'utf8',
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
+
+        self._store[key] = value
+        delete self._notFound[key]
+
         next()
       })
     } else if (o.type === 'del') {
-      self._lock(key, function (next) {
+      self._keyLock(key, function (next) {
         self._log.push({
           type: 'del',
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
+
+        delete self._store[key]
+        self._notFound[key] = true
+
         next()
       })
     }
@@ -323,7 +308,12 @@ TxDown.prototype._isBuffer = function (obj) {
   return Buffer.isBuffer(obj)
 }
 
-TxDown.prototype._commit = function (cb) {
+TxDown.prototype._close = function (cb) {
+  cb = cb || noop
+  this._lock.release(cb)
+}
+
+TxDown.prototype.commit = function (cb) {
   var self = this
   cb = cb || noop
   function next (err) {
@@ -334,19 +324,14 @@ TxDown.prototype._commit = function (cb) {
   }
   this._queue.done(function (err) {
     if (err) return next(err)
-    self._lock.extend(self.options.ttl, function (err) {
+    self._lock.extend(BATCH_TTL, function (err) {
       if (err) return next(err)
       self.db.batch(self._log, next)
     })
   })
 }
 
-TxDown.prototype._close = function (cb) {
-  cb = cb || noop
-  this._lock.release(cb)
-}
-
-TxDown.prototype._rollback = function (err, cb) {
+TxDown.prototype.rollback = function (err, cb) {
   this._error = err
   cb = cb || noop
   this._lock.release(cb)

@@ -2,6 +2,7 @@ var txdown = require('./txdown.js')
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var LevelUP = require('levelup')
+var lockCreator = require('2pl').creator
 
 function isLevelUP (db) {
   return db && (
@@ -11,81 +12,40 @@ function isLevelUP (db) {
 }
 
 function Transaction (db, options) {
-  if (!db || typeof db === 'string') {
-    throw new Error('Missing base.')
+  if (!isLevelUP(db)) {
+    throw new Error('db must be a levelup instance')
   }
-
-  if (db instanceof Transaction && typeof name !== 'string') {
-    if (name) {
-      // passing sublevel with options
-      // new instance, same prefix, extended options
-      return new Transaction(db, null, name)
-    } else if (!options) {
-      // Passing sublevel return sublevel
-      return db
-    }
-  }
-
   if (!(this instanceof Transaction)) {
-    // reuse sublevel
-    if (db._sublevels && db._sublevels[name]) {
-      return db._sublevels[name]
-    }
-    return new Transaction(db, name, options)
+    return new Transaction(db, options)
   }
 
-  if (typeof name !== 'string' && !options) {
-    // sublevel(db, options)
-    options = name
-    name = null
+  options = xtend({
+    ttl: 20 * 1000
+  }, db.options, options)
+
+  // get lock creator
+  var createLock
+  if (typeof options.createLock === 'function') {
+    // custom lock factory exists
+    createLock = options.createLock
+  } else if (typeof db.sublevel === 'function' && db.options.db) {
+    // all sublevels share same leveldown constructor
+    createLock = db.options.db._createLock = db.options.db._createLock || lockCreator()
+  } else {
+    // create and attach lock at levelup
+    createLock = db._createLock = db._createLock || lockCreator()
   }
 
-  var defaults = {}
-  var override = {}
-
+  // init txdown
   if (db instanceof Transaction) {
-    override.db = db.options.db
-    override.prefixEncoding = db.options.prefixEncoding
-    if (name) {
-      // memorize child
-      db._sublevels[name] = this
-    }
-  } else if (
-    db.toString() === 'LevelUP' || // levelup instance
-    typeof db.sublevel === 'function' // level-sublevel instance
-  ) {
-    // root is LevelUP, prefix based
-    defaults.prefixEncoding = prefixCodec
-    override.db = prefixdown(db)
+    // db is Transaction, get its levelup
+    options.db = txdown(db.options.db.db, createLock(options))
   } else {
-    // root is leveldown, table based
-    defaults.prefixEncoding = tableCodec
-    override.db = db
+    // db is LevelUP, wrap txdown
+    options.db = txdown(db, createLock(options))
   }
 
-  // sublevel children
-  this._sublevels = {}
-
-  options = xtend(defaults, db.options, options, override)
-  var c = options.prefixEncoding
-  var location
-  if (name) {
-    if (db instanceof Transaction) {
-      // concat sublevel prefix location with name
-      location = c.encode(c.decode(db.location).concat(name))
-    } else {
-      // levelup/down with name argument
-      location = c.encode([name])
-    }
-  } else {
-    if (db instanceof Transaction) {
-      // retain sublevel prefix location
-      location = db.location
-    } else {
-      // levelup/down without name argument
-      location = c.encode([])
-    }
-  }
+  var location = db.location
   // LevelUP.call(this, options.db(location), options)
   LevelUP.call(this, location, options)
 }
@@ -93,11 +53,14 @@ function Transaction (db, options) {
 inherits(Transaction, LevelUP)
 
 Transaction.prototype.commit = function (cb) {
-  // todo
+  this.db.commit(cb)
 }
 
 Transaction.prototype.rollback = function (err, cb) {
-  // todo
+  this.db.rollback(err, cb)
+}
+Transaction.prototype.defer = function (cb) {
+  this.db._queue.defer(cb)
 }
 
 module.exports = Transaction
