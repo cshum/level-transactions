@@ -124,7 +124,7 @@ function TxDown (db, lock, location) {
   this._acquired = {}
 
   this._store = {}
-  this._log = []
+  this._writes = []
   this._notFound = {}
 
   this._queue = queue()
@@ -197,7 +197,7 @@ TxDown.prototype._put = function (key, value, options, cb) {
   }
 
   this._keyLock(key, function (next) {
-    self._log.push(xtend({
+    self._writes.push(xtend({
       type: 'put',
       key: key,
       value: value
@@ -217,6 +217,8 @@ TxDown.prototype._get = function (key, options, cb) {
   this._keyLock(key, function (next) {
     if (self._notFound[key]) {
       return next(new Error('NotFound'))
+    } else if (key in self._store) {
+      return next(null, self._store[key])
     } else {
       self.db.get(key, encoding(options), function (err, val) {
         if (err && err.notFound) {
@@ -236,7 +238,7 @@ TxDown.prototype._del = function (key, options, cb) {
   key = concat(this.location, key)
 
   this._keyLock(key, function (next) {
-    self._log.push(xtend({
+    self._writes.push(xtend({
       type: 'del',
       key: key
     }, encoding(options)))
@@ -266,7 +268,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
         value = isValBuf ? Buffer(0) : ''
       }
       self._keyLock(key, function (next) {
-        self._log.push({
+        self._writes.push({
           type: 'put',
           key: key,
           value: value,
@@ -281,7 +283,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       })
     } else if (o.type === 'del') {
       self._keyLock(key, function (next) {
-        self._log.push({
+        self._writes.push({
           type: 'del',
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
@@ -324,7 +326,7 @@ TxDown.prototype.commit = function (cb) {
     if (err) return next(err)
     self._lock.extend(BATCH_TTL, function (err) {
       if (err) return next(err)
-      self.db.batch(self._log, next)
+      self.db.batch(self._writes, next)
     })
   })
 }
