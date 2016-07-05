@@ -10,6 +10,9 @@ function isLevelUP (db) {
     typeof db.sublevel === 'function'
   )
 }
+function isFunction (val) {
+  return typeof val === 'function'
+}
 
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
@@ -25,24 +28,27 @@ function Transaction (db, options) {
 
   // get lock creator
   var createLock
-  if (typeof options.createLock === 'function') {
+  if (isFunction(options.createLock)) {
     // custom lock factory exists
     createLock = options.createLock
-  } else if (typeof db.sublevel === 'function' && db.options.db) {
-    // all sublevels share same leveldown constructor
-    // TODO should be attaching on root levelup, same as below
-    createLock = db.options.db._createLock = db.options.db._createLock || lockCreator()
+  } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
+    // sublevelup, attach to its base levelup
+    var levelup = db.levelup()
+    createLock = levelup._createLock = levelup._createLock || lockCreator()
   } else {
-    // create and attach lock at levelup
+    // db is levelup, attach to db
     createLock = db._createLock = db._createLock || lockCreator()
   }
 
-  // TODO need to extract levelup from tx or sublevelup instance
   // init txdown
   if (db instanceof Transaction) {
     // db is Transaction, get its levelup
     this._levelup = db._levelup
-    options.db = txdown(db.levelup, createLock(options))
+    options.db = txdown(db._levelup, createLock(options))
+  } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
+    // db is sublevelup, get its levelup
+    this._levelup = db.levelup()
+    options.db = txdown(db.levelup(), createLock(options))
   } else {
     // db is LevelUP, wrap txdown
     this._levelup = db

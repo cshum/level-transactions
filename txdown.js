@@ -324,7 +324,6 @@ TxDown.prototype.commit = function (cb) {
     if (err) return next(err)
     self._lock.extend(BATCH_TTL, function (err) {
       if (err) return next(err)
-      console.log(self._log)
       self.db.batch(self._log, next)
     })
   })
