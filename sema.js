@@ -26,13 +26,6 @@ Sema.prototype.acquire = function (mode, fn) {
   mode = mode || Sema.EXCLUSIVE // default exclusive mode
   var self = this
 
-  // retuns promise if no fn
-  if (typeof fn !== 'function') {
-    return new Promise(function (resolve, reject) {
-      self.acquire(mode, resolve)
-    })
-  }
-
   function invoke () {
     self._mode = mode
     fn()

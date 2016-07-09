@@ -16,9 +16,6 @@ function isFunction (val) {
 
 function noop () {}
 
-// todo getCallback()
-// todo getOptions()
-
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
     throw new Error('db must be a levelup instance')
