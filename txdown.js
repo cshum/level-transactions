@@ -7,8 +7,6 @@ var iterate = require('stream-iterate')
 var END = '\uffff'
 var BATCH_TTL = 10 * 1000
 
-function noop () {}
-
 function concat (prefix, key) {
   if (typeof key === 'string') {
     return prefix + key
@@ -155,16 +153,15 @@ TxDown.prototype._getPrefix = function (options) {
 
 TxDown.prototype._keyLock = function (key, fn, cb) {
   var self = this
-  cb = cb || noop
   this._queue.defer(function (done) {
     function next (err) {
       if (err && !isNotFoundError(err)) {
         self._error = err
         // error breaks queue except notFoud err
-        cb(err)
+        if (cb) cb(err)
         done(err)
       } else {
-        cb.apply(self, arguments)
+        if (cb) cb.apply(self, arguments)
         done()
       }
     }
@@ -178,7 +175,7 @@ TxDown.prototype._keyLock = function (key, fn, cb) {
 
 TxDown.prototype._put = function (key, value, options, cb) {
   var self = this
-  key = concat(this.location, key)
+  key = concat(this._getPrefix(options), key)
 
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
@@ -200,7 +197,7 @@ TxDown.prototype._put = function (key, value, options, cb) {
 
 TxDown.prototype._get = function (key, options, cb) {
   var self = this
-  key = concat(this.location, key)
+  key = concat(this._getPrefix(options), key)
 
   this._keyLock(key, function (next) {
     if (self._notFound[key]) {
@@ -223,7 +220,7 @@ TxDown.prototype._get = function (key, options, cb) {
 
 TxDown.prototype._del = function (key, options, cb) {
   var self = this
-  key = concat(this.location, key)
+  key = concat(this._getPrefix(options), key)
 
   this._keyLock(key, function (next) {
     self._writes.push(xtend({
@@ -291,7 +288,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
 }
 
 TxDown.prototype._iterator = function (options) {
-  return new TxIterator(this.db, this.location, options)
+  return new TxIterator(this.db, this._getPrefix(options), options)
 }
 
 TxDown.prototype._isBuffer = function (obj) {
@@ -311,14 +308,19 @@ TxDown.prototype.defer = function (fn) {
   return this
 }
 
+TxDown.prototype.lock = function (key, options, cb) {
+  key = concat(this._getPrefix(options), key)
+  this._keyLock(key, function (next) {
+    next()
+  })
+}
+
 TxDown.prototype._close = function (cb) {
-  cb = cb || noop
   this._lock.release(cb)
 }
 
 TxDown.prototype.commit = function (cb) {
   var self = this
-  cb = cb || noop
   function next (err) {
     self._error = err
     self.close(cb)
@@ -334,7 +336,6 @@ TxDown.prototype.commit = function (cb) {
 
 TxDown.prototype.rollback = function (err, cb) {
   this._error = err
-  cb = cb || noop
   this.close(cb)
 }
 

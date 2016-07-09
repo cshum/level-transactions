@@ -96,8 +96,7 @@ test('Prefix and Codec', function (t) {
 
   var db = newDB()
 
-  var tx = transaction(db, {
-    prefix: db.sublevel('a'),
+  var tx = transaction(db.sublevel('a'), {
     keyEncoding: 'json',
     valueEncoding: 'json'
   })
@@ -125,7 +124,7 @@ test('Prefix and Codec', function (t) {
     db.sublevel('a').get('123', function (err, val) {
       t.notOk(err)
       t.deepEqual(val, [456, '789'], 'sublevel a committed')
-      var tx = transaction(db, { prefix: db.sublevel('a') })
+      var tx = transaction(db.sublevel('a'))
       tx.get('123', function (err, val) {
         t.notOk(err)
         t.deepEqual(val, [456, '789'], 'sublevel a get')

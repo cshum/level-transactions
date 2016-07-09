@@ -16,6 +16,9 @@ function isFunction (val) {
 
 function noop () {}
 
+// todo getCallback()
+// todo getOptions()
+
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
     throw new Error('db must be a levelup instance')
@@ -87,13 +90,41 @@ Transaction.prototype.open = function (cb) {
   return callback()
 }
 
+Transaction.prototype._getOptions = function (opts) {
+  return xtend(
+    this.options,
+    opts && !isFunction(opts) ? opts : {}
+  )
+}
+
+Transaction.prototype._getCallback = function () {
+  if (isFunction(arguments[arguments.length - 1])) {
+    return arguments[arguments.length - 1]
+  }
+  return noop
+}
+
 Transaction.prototype.commit = function (cb) {
-  this.db.commit(isFunction(cb) ? cb : noop)
+  this.db.commit(
+    this._getCallback(cb)
+  )
   return this
 }
 
 Transaction.prototype.rollback = function (err, cb) {
-  this.db.rollback(err, isFunction(cb) ? cb : noop)
+  this.db.rollback(
+    err,
+    this._getCallback(cb)
+  )
+  return this
+}
+
+Transaction.prototype.lock = function (key, options, cb) {
+  this.db.lock(
+    key,
+    this._getOptions(options),
+    this._getCallback(options, cb)
+  )
   return this
 }
 

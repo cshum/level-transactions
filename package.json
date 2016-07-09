@@ -21,7 +21,6 @@
   "dependencies": {
     "2pl": "^1.2.1",
     "async-depth-first": "^1.0.3",
-    "sema": "^2.0.3",
     "xtend": "^4.0.1"
   },
   "devDependencies": {
