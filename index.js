@@ -73,7 +73,7 @@ function Transaction (db, options) {
 
 inherits(Transaction, LevelUP)
 
-// override open() to bypass opening state and deferred
+// override to bypass opening state and deferred
 Transaction.prototype.open = function (cb) {
   var self = this
   function callback () {
@@ -88,6 +88,28 @@ Transaction.prototype.open = function (cb) {
   this.emit('open')
   this.emit('ready')
   return callback()
+}
+
+// override to bypass opening state and deferred
+Transaction.prototype.close = function (cb) {
+  var self = this
+  if (this.isOpen()) {
+    this._status = 'closing'
+    this.db.close(function () {
+      self._status = 'closed'
+      self.emit('closed')
+      if (cb) cb.apply(null, arguments)
+    })
+    this.emit('closing')
+  } else if (this._status === 'closed' && cb) {
+    return process.nextTick(cb)
+  } else if (this._status === 'closing' && cb) {
+    this.once('closed', cb)
+  } else if (this._isOpening()) {
+    this.once('open', function () {
+      self.close(cb)
+    })
+  }
 }
 
 Transaction.prototype._getOptions = function (opts) {
@@ -105,17 +127,35 @@ Transaction.prototype._getCallback = function () {
 }
 
 Transaction.prototype.commit = function (cb) {
-  this.db.commit(
-    this._getCallback(cb)
-  )
+  cb = this._getCallback(cb)
+  var self = this
+  var isClosed = this.isClosed()
+  if (isClosed) return cb(this.db._error)
+
+  var isCommitted = false
+  this.once('closed', function () {
+    if (!isCommitted) cb(self.db._error)
+  })
+  this.db._commit(function (err) {
+    isCommitted = true
+    self.close(function (errClose) {
+      cb(err || errClose || null)
+    })
+  })
   return this
 }
 
 Transaction.prototype.rollback = function (err, cb) {
-  this.db.rollback(
-    err,
-    this._getCallback(cb)
-  )
+  var self = this
+  err = err && !isFunction(err)
+    ? err
+    : new Error('Transaction Rollback')
+  cb = this._getCallback(err, cb)
+  this.db._rollback(err, function (err) {
+    self.close(function (errClose) {
+      cb(err || errClose || null)
+    })
+  })
   return this
 }
 

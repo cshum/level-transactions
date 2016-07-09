@@ -319,24 +319,20 @@ TxDown.prototype._close = function (cb) {
   this._lock.release(cb)
 }
 
-TxDown.prototype.commit = function (cb) {
+TxDown.prototype._commit = function (cb) {
   var self = this
-  function next (err) {
-    self._error = err
-    self.close(cb)
-  }
   this._queue.done(function (err) {
-    if (err) return next(err)
+    if (err) return cb(err)
     self._lock.extend(BATCH_TTL, function (err) {
-      if (err) return next(err)
-      self.db.batch(self._writes, next)
+      if (err) return cb(err)
+      self.db.batch(self._writes, cb)
     })
   })
 }
 
-TxDown.prototype.rollback = function (err, cb) {
+TxDown.prototype._rollback = function (err, cb) {
   this._error = err
-  this.close(cb)
+  process.nextTick(cb)
 }
 
 module.exports = TxDown
