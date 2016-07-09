@@ -151,7 +151,7 @@ TxDown.prototype._getPrefix = function (options) {
   return this.location
 }
 
-TxDown.prototype._keyLock = function (key, fn, cb) {
+TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
   var self = this
   this._queue.defer(function (done) {
     function next (err) {
@@ -165,6 +165,7 @@ TxDown.prototype._keyLock = function (key, fn, cb) {
         done()
       }
     }
+    if (unsafe) return fn(next)
     self._lock.acquire(key, function (err) {
       if (err && err.RELEASED) return
       if (err) return done(err)
@@ -192,7 +193,7 @@ TxDown.prototype._put = function (key, value, options, cb) {
     delete self._notFound[key]
 
     next()
-  }, cb)
+  }, cb, options.unsafe)
 }
 
 TxDown.prototype._get = function (key, options, cb) {
@@ -215,7 +216,7 @@ TxDown.prototype._get = function (key, options, cb) {
         next.apply(self, arguments)
       })
     }
-  }, cb)
+  }, cb, options.unsafe)
 }
 
 TxDown.prototype._del = function (key, options, cb) {
@@ -232,7 +233,7 @@ TxDown.prototype._del = function (key, options, cb) {
     self._notFound[key] = true
 
     next()
-  }, cb)
+  }, cb, options.unsafe)
 }
 
 TxDown.prototype._batch = function (operations, options, cb) {
@@ -265,7 +266,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
         delete self._notFound[key]
 
         next()
-      })
+      }, null, options.unsafe)
     } else if (o.type === 'del') {
       self._keyLock(key, function (next) {
         self._writes.push({
@@ -278,7 +279,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
         self._notFound[key] = true
 
         next()
-      })
+      }, null, options.unsafe)
     }
   })
   self._queue.defer(function (done) {

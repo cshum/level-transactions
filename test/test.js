@@ -273,7 +273,6 @@ test('Lock()', function (t) {
   })
 })
 
-/*
 test('Unsafe', function (t) {
   t.plan(6)
 
@@ -309,7 +308,6 @@ test('Unsafe', function (t) {
     })
   })
 })
-*/
 
 test('Defer error', function (t) {
   t.plan(6)
