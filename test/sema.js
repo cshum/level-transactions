@@ -36,7 +36,7 @@ test('shared-exclusive lock', function (t) {
   var unlocked = 0
 
   while (start++ < num) {
-    lock.acquire(sema.SHARED).then(function () { // promise
+    lock.acquire(sema.SHARED, function () {
       curr++
       t.equal(lock.mode(), sema.SHARED, 'shared mode after acquired')
       if (curr === num) {
