@@ -14,6 +14,8 @@ function isFunction (val) {
   return typeof val === 'function'
 }
 
+function noop () {}
+
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
     throw new Error('db must be a levelup instance')
@@ -68,15 +70,36 @@ function Transaction (db, options) {
 
 inherits(Transaction, LevelUP)
 
+// override open() to bypass opening state and deferred
+Transaction.prototype.open = function (cb) {
+  var self = this
+  function callback () {
+    if (isFunction(cb)) {
+      process.nextTick(function () { callback(null, self) })
+    }
+    return this
+  }
+  if (this.isOpen()) return callback()
+  this.db = this.options.db(this.location)
+  this._status = 'open'
+  this.emit('open')
+  this.emit('ready')
+  return callback()
+}
+
 Transaction.prototype.commit = function (cb) {
-  this.db.commit(cb)
+  this.db.commit(isFunction(cb) ? cb : noop)
+  return this
 }
 
 Transaction.prototype.rollback = function (err, cb) {
-  this.db.rollback(err, cb)
+  this.db.rollback(err, isFunction(cb) ? cb : noop)
+  return this
 }
+
 Transaction.prototype.defer = function (fn) {
-  this.db._queue.defer(fn)
+  this.db.defer(fn)
+  return this
 }
 
 module.exports = Transaction

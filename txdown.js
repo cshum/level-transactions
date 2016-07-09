@@ -121,11 +121,10 @@ function TxDown (db, lock, location) {
 
   this.db = db
   this._lock = lock
-  this._acquired = {}
 
   this._store = {}
-  this._writes = []
   this._notFound = {}
+  this._writes = []
 
   this._queue = queue()
   this._error = null
@@ -154,12 +153,6 @@ TxDown.prototype._getPrefix = function (options) {
   return this.location
 }
 
-// TxDown.prototype._open = function (options, callback) {
-//   this.options = options
-//
-//   process.nextTick(callback)
-// }
-
 TxDown.prototype._keyLock = function (key, fn, cb) {
   var self = this
   cb = cb || noop
@@ -175,16 +168,11 @@ TxDown.prototype._keyLock = function (key, fn, cb) {
         done()
       }
     }
-    if (self._acquired[key]) {
+    self._lock.acquire(key, function (err) {
+      if (err && err.RELEASED) return
+      if (err) return done(err)
       fn(next)
-    } else {
-      self._lock.acquire(key, function (err) {
-        if (err && err.RELEASED) return
-        if (err) return done(err)
-        self._acquired[key] = true
-        fn(next)
-      })
-    }
+    })
   })
 }
 
@@ -308,6 +296,19 @@ TxDown.prototype._iterator = function (options) {
 
 TxDown.prototype._isBuffer = function (obj) {
   return Buffer.isBuffer(obj)
+}
+
+TxDown.prototype.defer = function (fn) {
+  var self = this
+  this._queue.defer(function (cb) {
+    fn(function (err) {
+      // notFound error wont block async
+      if (!err || isNotFoundError(err)) return cb()
+      self._error = err
+      cb(err)
+    })
+  })
+  return this
 }
 
 TxDown.prototype._close = function (cb) {
