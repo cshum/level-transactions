@@ -1,5 +1,5 @@
 var xtend = require('xtend')
-var sema = require('./sema')
+var semaphore = require('./semaphore')
 var Err = require('./error')
 var noop = function () {}
 
@@ -17,7 +17,7 @@ function Lock (shared, opts) {
   this._start = Date.now()
   this._ttl = this.options.ttl
   this._error = Err.RELEASED
-  this._q = sema()
+  this._q = semaphore()
 
   var self = this
   this._timeout = setTimeout(function () {
@@ -35,7 +35,7 @@ Lock.prototype.acquire = function (key, cb) {
   key = String(key)
 
   var self = this
-  var mutex = this._shared[key] = this._shared[key] || sema()
+  var mutex = this._shared[key] = this._shared[key] || semaphore()
   this._q.acquire(function () {
     if (self._released) return cb(self._error)
     if (self._locked[key]) {
@@ -54,8 +54,6 @@ Lock.prototype.acquire = function (key, cb) {
     if (!self._released) self._q.release()
   })
 }
-
-Lock.prototype.lock = Lock.prototype.acquire
 
 Lock.prototype.extend = function (ttl, cb) {
   cb = typeof cb === 'function' ? cb : noop

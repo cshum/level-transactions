@@ -1,5 +1,5 @@
 var test = require('tape')
-var sema = require('../sema')
+var sema = require('../semaphore')
 
 test('exclusive lock', function (t) {
   var lock = sema()

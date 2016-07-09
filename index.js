@@ -1,4 +1,4 @@
-var txdown = require('./txdown.js')
+var txdown = require('./leveldown.js')
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var LevelUP = require('levelup')
@@ -13,8 +13,6 @@ function isLevelUP (db) {
 function isFunction (val) {
   return typeof val === 'function'
 }
-
-function noop () {}
 
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
@@ -120,7 +118,7 @@ Transaction.prototype._getCallback = function () {
   if (isFunction(arguments[arguments.length - 1])) {
     return arguments[arguments.length - 1]
   }
-  return noop
+  return function () {}
 }
 
 Transaction.prototype.commit = function (cb) {

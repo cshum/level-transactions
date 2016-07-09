@@ -1,16 +1,16 @@
 var setImmediate = global.setImmediate || process.nextTick
 
-function Sema () {
-  if (!(this instanceof Sema)) return new Sema()
+function Semaphore () {
+  if (!(this instanceof Semaphore)) return new Semaphore()
   this._waitlist = []
-  this._mode = Sema.FREE
+  this._mode = Semaphore.FREE
   this._count = 0
 }
 
-Sema.FREE = 0
-Sema.SHARED = 1
-Sema.EXCLUSIVE = 2
-Sema.WAIT = 3
+Semaphore.FREE = 0
+Semaphore.SHARED = 1
+Semaphore.EXCLUSIVE = 2
+Semaphore.WAIT = 3
 
 /**
  * Acquire lock
@@ -18,12 +18,12 @@ Sema.WAIT = 3
  * @param {?number} mode - lock mode
  * @param {function} fn - callback function
  */
-Sema.prototype.acquire = function (mode, fn) {
+Semaphore.prototype.acquire = function (mode, fn) {
   if (typeof mode === 'function') {
     fn = mode
     mode = null
   }
-  mode = mode || Sema.EXCLUSIVE // default exclusive mode
+  mode = mode || Semaphore.EXCLUSIVE // default exclusive mode
   var self = this
 
   function invoke () {
@@ -31,15 +31,15 @@ Sema.prototype.acquire = function (mode, fn) {
     fn()
   }
   if (
-    this._mode === Sema.FREE ||
-    mode === Sema.SHARED && this._mode === Sema.SHARED
+    this._mode === Semaphore.FREE ||
+    mode === Semaphore.SHARED && this._mode === Semaphore.SHARED
   ) {
     // semaphore free or shared only
     this._count++
     invoke()
   } else {
     // require wait
-    this._mode = Sema.WAIT
+    this._mode = Semaphore.WAIT
     this._waitlist.push(invoke)
   }
 }
@@ -47,7 +47,7 @@ Sema.prototype.acquire = function (mode, fn) {
 /**
  * Release lock
  */
-Sema.prototype.release = function () {
+Semaphore.prototype.release = function () {
   if (this._count === 1 && this._waitlist.length > 0) {
     setImmediate(this._waitlist.shift())
   } else {
@@ -56,7 +56,7 @@ Sema.prototype.release = function () {
     }
     this._count--
     if (this._count === 0) {
-      this._mode = Sema.FREE
+      this._mode = Semaphore.FREE
     }
   }
 }
@@ -66,12 +66,12 @@ Sema.prototype.release = function () {
  *
  * @returns {number} mode constant
  */
-Sema.prototype.mode = function () {
+Semaphore.prototype.mode = function () {
   return this._mode
 }
 
-Sema.prototype.take = Sema.prototype.acquire
-Sema.prototype.leave = Sema.prototype.release
+Semaphore.prototype.take = Semaphore.prototype.acquire
+Semaphore.prototype.leave = Semaphore.prototype.release
 
-module.exports = Sema
+module.exports = Semaphore
 
