@@ -3,7 +3,7 @@ var levelup = require('levelup')
 var sublevel = require('sublevelup')
 var leveldown = require('leveldown')
 var transaction = require('../')
-var lock = require('2pl')
+var lock = require('../lock')
 
 require('rimraf').sync('test/db')
 

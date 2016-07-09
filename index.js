@@ -2,7 +2,7 @@ var txdown = require('./txdown.js')
 var xtend = require('xtend')
 var inherits = require('util').inherits
 var LevelUP = require('levelup')
-var lockCreator = require('2pl').creator
+var lockCreator = require('./lock').creator
 
 function isLevelUP (db) {
   return db && (

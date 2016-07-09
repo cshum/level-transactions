@@ -4,7 +4,7 @@
   "description": "Transaction manager for LevelDB.",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
-    "test": "standard && node test/test.js"
+    "test": "standard && tape test/*.js"
   },
   "repository": {
     "type": "git",
@@ -19,7 +19,6 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "2pl": "^1.2.1",
     "async-depth-first": "^1.0.3",
     "xtend": "^4.0.1"
   },
