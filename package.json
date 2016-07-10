@@ -19,8 +19,10 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "abstract-leveldown": "^2.6.0",
     "async-depth-first": "^1.0.3",
     "errno": "^0.1.4",
+    "stream-iterate": "^1.1.1",
     "xtend": "^4.0.1"
   },
   "devDependencies": {
