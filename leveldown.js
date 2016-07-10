@@ -167,7 +167,7 @@ TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
     }
     if (unsafe) return fn(next)
     self._lock.acquire(key, function (err) {
-      if (err && err.RELEASED) return
+      if (err && err.released) return
       if (err) return done(err)
       fn(next)
     })
@@ -332,7 +332,7 @@ TxDown.prototype._commit = function (cb) {
 }
 
 TxDown.prototype._rollback = function (err, cb) {
-  this._error = err
+  if (err) this._error = err
   process.nextTick(cb)
 }
 

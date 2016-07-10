@@ -142,9 +142,7 @@ Transaction.prototype.commit = function (cb) {
 
 Transaction.prototype.rollback = function (err, cb) {
   var self = this
-  err = err && !isFunction(err)
-    ? err
-    : new Error('Transaction Rollback')
+  err = err && !isFunction(err) ? err : null
   cb = this._getCallback(err, cb)
   this.db._rollback(err, function (err) {
     self.close(function (errClose) {

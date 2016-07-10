@@ -200,14 +200,14 @@ test('TTL', function (t) {
   })
 
   tx.commit(function (err) {
-    t.ok(err.TIMEOUT, 'error timeout')
+    t.ok(err.timeout, 'error timeout')
     db.get('b', function (err, value) {
       t.ok(err.notFound)
       t.notOk(value, 'tx no put')
     })
   })
   tx2.commit(function (err) {
-    t.ok(err.TIMEOUT, 'error timeout')
+    t.ok(err.timeout, 'error timeout')
     db.get('a', function (err, value) {
       t.ok(err.notFound)
       t.notOk(value, 'tx2 no put')

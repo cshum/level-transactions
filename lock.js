@@ -1,6 +1,6 @@
 var xtend = require('xtend')
 var semaphore = require('./semaphore')
-var Err = require('./error')
+var err = require('./errors')
 var noop = function () {}
 
 var defaults = {
@@ -16,12 +16,12 @@ function Lock (shared, opts) {
   this._released = false
   this._start = Date.now()
   this._ttl = this.options.ttl
-  this._error = Err.RELEASED
+  this._error = null
   this._q = semaphore()
 
   var self = this
   this._timeout = setTimeout(function () {
-    self._error = Err.TIMEOUT
+    self._error = new err.Timeout('Transaction timeout')
     self.release()
   }, this._ttl)
 }
@@ -29,22 +29,28 @@ function Lock (shared, opts) {
 Lock.prototype.acquire = function (key, cb) {
   cb = typeof cb === 'function' ? cb : noop
 
-  if (!key) return cb(Err.INVALID_KEY)
-  if (this._released) return cb(this._error)
+  if (!key) {
+    return cb(new Error('Key must be a string or buffer'))
+  }
+  if (this._released) {
+    return cb(this._error || new err.Released('Transaction released'))
+  }
 
   key = String(key)
 
   var self = this
   var mutex = this._shared[key] = this._shared[key] || semaphore()
   this._q.acquire(function () {
-    if (self._released) return cb(self._error)
+    if (this._released) {
+      return cb(self._error || new err.Released('Transaction released'))
+    }
     if (self._locked[key]) {
       cb()
     } else {
       mutex.acquire(function () {
         if (self._released) {
           mutex.release()
-          cb(self._error)
+          cb(self._error || new err.Released('Transaction released'))
           return
         }
         self._locked[key] = true
@@ -58,7 +64,9 @@ Lock.prototype.acquire = function (key, cb) {
 Lock.prototype.extend = function (ttl, cb) {
   cb = typeof cb === 'function' ? cb : noop
 
-  if (this._released) return cb(this._error)
+  if (this._released) {
+    return cb(this._error || new err.Released('Transaction released'))
+  }
 
   ttl = Number(ttl) || 0
   var self = this
@@ -67,7 +75,7 @@ Lock.prototype.extend = function (ttl, cb) {
   clearTimeout(this._timeout)
 
   this._timeout = setTimeout(function () {
-    self._error = Err.TIMEOUT
+    self._error = new err.Timeout('Transaction timeout')
     self.release()
   }, ttl + this._ttl - elasped)
 
@@ -79,7 +87,9 @@ Lock.prototype.extend = function (ttl, cb) {
 Lock.prototype.release = function (cb) {
   cb = typeof cb === 'function' ? cb : noop
 
-  if (this._released) return cb(this._error)
+  if (this._released) {
+    return cb(this._error || new err.Released('Transaction released'))
+  }
 
   this._released = true
   clearTimeout(this._timeout)
