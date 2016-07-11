@@ -17,6 +17,10 @@ function concat (prefix, key) {
   return prefix + String(key)
 }
 
+function mapkey (key) {
+  return '!' + (key || '').toString()
+}
+
 function encoding (o) {
   return xtend(o, {
     keyEncoding: o.keyAsBuffer ? 'binary' : 'utf8',
@@ -177,20 +181,21 @@ TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
 TxDown.prototype._put = function (key, value, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
+  var hashed = mapkey(key)
 
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
   }
 
-  this._keyLock(key, function (next) {
+  this._keyLock(hashed, function (next) {
     self._writes.push(xtend({
       type: 'put',
       key: key,
       value: value
     }, encoding(options)))
 
-    self._store[key] = value
-    delete self._notFound[key]
+    self._store[hashed] = value
+    delete self._notFound[hashed]
 
     next()
   }, cb, options.unsafe)
@@ -199,19 +204,20 @@ TxDown.prototype._put = function (key, value, options, cb) {
 TxDown.prototype._get = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
+  var hashed = mapkey(key)
 
-  this._keyLock(key, function (next) {
-    if (self._notFound[key]) {
+  this._keyLock(hashed, function (next) {
+    if (self._notFound[hashed]) {
       return next(new Error('NotFound'))
-    } else if (key in self._store) {
-      return next(null, self._store[key])
+    } else if (hashed in self._store) {
+      return next(null, self._store[hashed])
     } else {
       self.db.get(key, encoding(options), function (err, val) {
         if (err && err.notFound) {
-          self._notFound[key] = true
-          delete self._store[key]
+          self._notFound[hashed] = true
+          delete self._store[hashed]
         } else {
-          self._store[key] = val
+          self._store[hashed] = val
         }
         next.apply(self, arguments)
       })
@@ -222,15 +228,16 @@ TxDown.prototype._get = function (key, options, cb) {
 TxDown.prototype._del = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
+  var hashed = mapkey(key)
 
-  this._keyLock(key, function (next) {
+  this._keyLock(hashed, function (next) {
     self._writes.push(xtend({
       type: 'del',
       key: key
     }, encoding(options)))
 
-    delete self._store[key]
-    self._notFound[key] = true
+    delete self._store[hashed]
+    self._notFound[hashed] = true
 
     next()
   }, cb, options.unsafe)
@@ -246,6 +253,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
   var self = this
   operations.forEach(function (o) {
     var key = concat(self._getPrefix(o), o.key)
+    var hashed = mapkey(key)
     var isKeyBuf = Buffer.isBuffer(o.key)
     if (o.type === 'put') {
       var isValBuf = Buffer.isBuffer(o.value)
@@ -253,7 +261,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       if (value === null || value === undefined) {
         value = isValBuf ? Buffer(0) : ''
       }
-      self._keyLock(key, function (next) {
+      self._keyLock(hashed, function (next) {
         self._writes.push({
           type: 'put',
           key: key,
@@ -262,21 +270,21 @@ TxDown.prototype._batch = function (operations, options, cb) {
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
 
-        self._store[key] = value
-        delete self._notFound[key]
+        self._store[hashed] = value
+        delete self._notFound[hashed]
 
         next()
       }, null, options.unsafe)
     } else if (o.type === 'del') {
-      self._keyLock(key, function (next) {
+      self._keyLock(hashed, function (next) {
         self._writes.push({
           type: 'del',
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
 
-        delete self._store[key]
-        self._notFound[key] = true
+        delete self._store[hashed]
+        self._notFound[hashed] = true
 
         next()
       }, null, options.unsafe)
@@ -311,7 +319,8 @@ TxDown.prototype.defer = function (fn) {
 
 TxDown.prototype.lock = function (key, options, cb) {
   key = concat(this._getPrefix(options), key)
-  this._keyLock(key, function (next) {
+  var hashed = mapkey(key)
+  this._keyLock(hashed, function (next) {
     next()
   })
 }
