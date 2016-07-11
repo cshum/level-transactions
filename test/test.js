@@ -5,9 +5,9 @@ var leveldown = require('leveldown')
 var transaction = require('../')
 var lock = require('../lock')
 
-require('rimraf').sync('test/db')
+require('rimraf').sync('./test/db')
 
-var db = sublevel(levelup('test/db', {
+var db = sublevel(levelup('./test/db', {
   db: leveldown,
   keyEncoding: 'utf8',
   valueEncoding: 'json'
