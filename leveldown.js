@@ -124,7 +124,6 @@ function TxDown (db, createLock, location) {
   this.db = db
 
   this._store = {}
-  this._notFound = {}
   this._writes = []
   this._createLock = createLock
 
@@ -186,21 +185,20 @@ TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
 TxDown.prototype._put = function (key, value, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var hashed = mapkey(key)
+  var mapped = mapkey(key)
 
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
   }
 
-  this._keyLock(hashed, function (next) {
+  this._keyLock(mapped, function (next) {
     self._writes.push(xtend({
       type: 'put',
       key: key,
       value: value
     }, encoding(options)))
 
-    self._store[hashed] = value
-    delete self._notFound[hashed]
+    self._store[mapped] = value
 
     next()
   }, cb, options.unsafe)
@@ -209,14 +207,14 @@ TxDown.prototype._put = function (key, value, options, cb) {
 TxDown.prototype._get = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var hashed = mapkey(key)
+  var mapped = mapkey(key)
 
-  this._keyLock(hashed, function (next) {
-    if (self._notFound[hashed]) {
-      return next(new Error('NotFound'))
-    } else if (hashed in self._store) {
-      var value = self._store[hashed]
-      if (value === 'null' || value === 'undefined') {
+  this._keyLock(mapped, function (next) {
+    if (mapped in self._store) {
+      var value = self._store[mapped]
+      if (value === false) {
+        next(new Error('NotFound'))
+      } else if (value === 'null' || value === 'undefined') {
         next(null, options.asBuffer ? Buffer(0) : '')
       } else if (options.asBuffer && !Buffer.isBuffer(value)) {
         next(null, new Buffer(value))
@@ -228,10 +226,9 @@ TxDown.prototype._get = function (key, options, cb) {
     } else {
       self.db.get(key, encoding(options), function (err, val) {
         if (err && err.notFound) {
-          self._notFound[hashed] = true
-          delete self._store[hashed]
+          self._store[mapped] = false
         } else {
-          self._store[hashed] = val
+          self._store[mapped] = val
         }
         next.apply(self, arguments)
       })
@@ -242,16 +239,15 @@ TxDown.prototype._get = function (key, options, cb) {
 TxDown.prototype._del = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var hashed = mapkey(key)
+  var mapped = mapkey(key)
 
-  this._keyLock(hashed, function (next) {
+  this._keyLock(mapped, function (next) {
     self._writes.push(xtend({
       type: 'del',
       key: key
     }, encoding(options)))
 
-    delete self._store[hashed]
-    self._notFound[hashed] = true
+    self._store[mapped] = false
 
     next()
   }, cb, options.unsafe)
@@ -267,7 +263,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
   var self = this
   operations.forEach(function (o) {
     var key = concat(self._getPrefix(o), o.key)
-    var hashed = mapkey(key)
+    var mapped = mapkey(key)
     var isKeyBuf = Buffer.isBuffer(o.key)
     if (o.type === 'put') {
       var isValBuf = Buffer.isBuffer(o.value)
@@ -275,7 +271,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       if (value === null || value === undefined) {
         value = isValBuf ? Buffer(0) : ''
       }
-      self._keyLock(hashed, function (next) {
+      self._keyLock(mapped, function (next) {
         self._writes.push({
           type: 'put',
           key: key,
@@ -284,21 +280,19 @@ TxDown.prototype._batch = function (operations, options, cb) {
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
 
-        self._store[hashed] = value
-        delete self._notFound[hashed]
+        self._store[mapped] = value
 
         next()
       }, null, options.unsafe)
     } else if (o.type === 'del') {
-      self._keyLock(hashed, function (next) {
+      self._keyLock(mapped, function (next) {
         self._writes.push({
           type: 'del',
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
 
-        delete self._store[hashed]
-        self._notFound[hashed] = true
+        self._store[mapped] = false
 
         next()
       }, null, options.unsafe)
@@ -333,8 +327,8 @@ TxDown.prototype.defer = function (fn) {
 
 TxDown.prototype.lock = function (key, options, cb) {
   key = concat(this._getPrefix(options), key)
-  var hashed = mapkey(key)
-  this._keyLock(hashed, function (next) {
+  var mapped = mapkey(key)
+  this._keyLock(mapped, function (next) {
     next()
   })
 }
