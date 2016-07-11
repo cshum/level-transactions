@@ -5,7 +5,7 @@ var abs = require('abstract-leveldown')
 var iterate = require('stream-iterate')
 
 var END = '\uffff'
-var BATCH_TTL = 10 * 1000
+var BATCH_TTL = 20 * 1000
 
 function concat (prefix, key) {
   if (typeof key === 'string') {
@@ -107,22 +107,21 @@ function isLevelUP (db) {
   )
 }
 
-function TxDown (db, lock, location) {
+function TxDown (db, location) {
   if (!isLevelUP(db)) {
     throw new Error('db must be a levelup instance')
   }
-  if (arguments.length < 3) {
+  if (arguments.length < 2) {
     // LeveUP defined factory
     return function (location) {
-      return new TxDown(db, lock, location)
+      return new TxDown(db, location)
     }
   }
   if (!(this instanceof TxDown)) {
-    return new TxDown(db, lock, location)
+    return new TxDown(db, location)
   }
 
   this.db = db
-  this._lock = lock
 
   this._store = {}
   this._notFound = {}
@@ -135,6 +134,11 @@ function TxDown (db, lock, location) {
 }
 
 inherits(TxDown, abs.AbstractLevelDOWN)
+
+TxDown.prototype._open = function (options, callback) {
+  this._lock = this._lock || options.createLock(options)
+  process.nextTick(callback)
+}
 
 TxDown.prototype._getPrefix = function (options) {
   // handle prefix options

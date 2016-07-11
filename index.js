@@ -13,6 +13,7 @@ function isLevelUP (db) {
 function isFunction (val) {
   return typeof val === 'function'
 }
+function noop () {}
 
 function Transaction (db, options) {
   if (!isLevelUP(db)) {
@@ -27,32 +28,25 @@ function Transaction (db, options) {
   }, db.options, options)
 
   // get lock creator
-  var createLock
-  if (isFunction(options.createLock)) {
-    // custom lock factory exists
-    createLock = options.createLock
-  } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
-    // sublevelup, attach to its base levelup
-    var levelup = db.levelup()
-    createLock = levelup._createLock = levelup._createLock || lockCreator()
-  } else {
-    // db is levelup, attach to db
-    createLock = db._createLock = db._createLock || lockCreator()
+  if (!isFunction(options.createLock)) {
+    var levelup = isFunction(db.levelup) ? db.levelup() : db
+    // attach to levelup
+    options.createLock = levelup._createLock = levelup._createLock || lockCreator()
   }
 
   // init txdown
   if (db instanceof Transaction) {
     // db is Transaction, get its levelup
     this._levelup = db._levelup
-    options.db = txdown(db._levelup, createLock(options))
+    options.db = txdown(db._levelup)
   } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
     // db is sublevelup, get its levelup
     this._levelup = db.levelup()
-    options.db = txdown(db.levelup(), createLock(options))
+    options.db = txdown(db.levelup())
   } else {
     // db is LevelUP, wrap txdown
     this._levelup = db
-    options.db = txdown(db, createLock(options))
+    options.db = txdown(db)
   }
 
   var location = db.location
@@ -60,7 +54,7 @@ function Transaction (db, options) {
   LevelUP.call(this, location, options)
 
   var self = this
-  this.on('closed', function () {
+  this.once('closed', function () {
     self.emit('end', self.db._error)
     self.emit('release', self.db._error)
   })
@@ -79,13 +73,14 @@ Transaction.prototype.open = function (cb) {
   }
   if (this.isOpen()) return callback()
   this.db = this.options.db(this.location)
+  this.db._lock = this.options.createLock(this.options)
   this._status = 'open'
   this.emit('open')
   this.emit('ready')
   return callback()
 }
 
-// override to bypass opening state and deferred
+// override to bypass deferred
 Transaction.prototype.close = function (cb) {
   var self = this
   if (this.isOpen()) {
@@ -118,7 +113,7 @@ Transaction.prototype._getCallback = function () {
   if (isFunction(arguments[arguments.length - 1])) {
     return arguments[arguments.length - 1]
   }
-  return function () {}
+  return noop
 }
 
 Transaction.prototype.commit = function (cb) {
