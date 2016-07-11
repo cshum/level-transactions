@@ -227,7 +227,7 @@ TxDown.prototype._get = function (key, options, cb) {
       self.db.get(key, encoding(options), function (err, val) {
         if (err && err.notFound) {
           self._store[mapped] = false
-        } else {
+        } else if (!err) {
           self._store[mapped] = val
         }
         next.apply(self, arguments)
