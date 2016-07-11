@@ -38,11 +38,11 @@ function Transaction (db, options) {
   if (db instanceof Transaction) {
     // db is Transaction, get its levelup
     this._levelup = db._levelup
-    options.db = txdown(db._levelup)
+    options.db = txdown(db._levelup, options.createLock)
   } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
     // db is sublevelup, get its levelup
     this._levelup = db.levelup()
-    options.db = txdown(db.levelup())
+    options.db = txdown(db.levelup(), options.createLock)
   } else {
     // db is LevelUP, wrap txdown
     this._levelup = db

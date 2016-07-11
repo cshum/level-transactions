@@ -107,18 +107,18 @@ function isLevelUP (db) {
   )
 }
 
-function TxDown (db, location) {
+function TxDown (db, createLock, location) {
   if (!isLevelUP(db)) {
     throw new Error('db must be a levelup instance')
   }
-  if (arguments.length < 2) {
+  if (arguments.length < 3) {
     // LeveUP defined factory
     return function (location) {
-      return new TxDown(db, location)
+      return new TxDown(db, createLock, location)
     }
   }
   if (!(this instanceof TxDown)) {
-    return new TxDown(db, location)
+    return new TxDown(db, createLock, location)
   }
 
   this.db = db
@@ -126,6 +126,7 @@ function TxDown (db, location) {
   this._store = {}
   this._notFound = {}
   this._writes = []
+  this._createLock = createLock
 
   this._queue = queue()
   this._error = null
@@ -136,7 +137,7 @@ function TxDown (db, location) {
 inherits(TxDown, abs.AbstractLevelDOWN)
 
 TxDown.prototype._open = function (options, callback) {
-  this._lock = this._lock || options.createLock(options)
+  this._lock = this._lock || this._createLock(options)
   process.nextTick(callback)
 }
 
