@@ -215,7 +215,16 @@ TxDown.prototype._get = function (key, options, cb) {
     if (self._notFound[hashed]) {
       return next(new Error('NotFound'))
     } else if (hashed in self._store) {
-      return next(null, self._store[hashed])
+      var value = self._store[hashed]
+      if (value === 'null' || value === 'undefined') {
+        next(null, options.asBuffer ? Buffer(0) : '')
+      } else if (options.asBuffer && !Buffer.isBuffer(value)) {
+        next(null, new Buffer(value))
+      } else if (!options.asBuffer && Buffer.isBuffer(value)) {
+        next(null, value.toString())
+      } else {
+        next(null, value)
+      }
     } else {
       self.db.get(key, encoding(options), function (err, val) {
         if (err && err.notFound) {
