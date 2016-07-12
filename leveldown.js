@@ -219,7 +219,7 @@ TxDown.prototype._get = function (key, options, cb) {
       } else if (options.asBuffer && !Buffer.isBuffer(value)) {
         next(null, new Buffer(value))
       } else if (!options.asBuffer && Buffer.isBuffer(value)) {
-        next(null, value.toString())
+        next(null, String(value))
       } else {
         next(null, value)
       }
@@ -279,7 +279,6 @@ TxDown.prototype._batch = function (operations, options, cb) {
           keyEncoding: isKeyBuf ? 'binary' : 'utf8',
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
-
         self._store[mapped] = value
 
         next()
@@ -291,7 +290,6 @@ TxDown.prototype._batch = function (operations, options, cb) {
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
-
         self._store[mapped] = false
 
         next()
