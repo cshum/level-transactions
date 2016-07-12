@@ -119,14 +119,14 @@ Transaction.prototype._getCallback = function () {
 Transaction.prototype.commit = function (cb) {
   cb = this._getCallback(cb)
   var self = this
-  var isClosed = this.isClosed()
-  if (isClosed) return cb(this.db._error)
+  if (this.isClosed()) return cb(this.db._error)
 
   var isCommitted = false
   this.once('closed', function () {
     if (!isCommitted) cb(self.db._error)
   })
   this.db._commit(function (err) {
+    if (self.isClosed()) return
     isCommitted = true
     self.close(function (errClose) {
       cb(err || errClose || null)
