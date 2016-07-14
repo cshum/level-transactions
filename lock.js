@@ -7,6 +7,10 @@ var defaults = {
   ttl: 20 * 1000
 }
 
+function mapkey (key) {
+  return '!' + (key || '').toString()
+}
+
 function Lock (shared, opts) {
   if (!(this instanceof Lock)) return new Lock(shared, opts)
   this.options = xtend(defaults, opts)
@@ -36,7 +40,7 @@ Lock.prototype.acquire = function (key, cb) {
     return cb(this._error || new err.Released('Transaction released'))
   }
 
-  key = String(key)
+  key = mapkey(key)
 
   var self = this
   var mutex = this._shared[key] = this._shared[key] || semaphore()

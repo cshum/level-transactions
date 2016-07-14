@@ -19,10 +19,6 @@ function concat (prefix, key) {
   return prefix + String(key)
 }
 
-function mapkey (key) {
-  return '!' + (key || '').toString()
-}
-
 function encoding (o) {
   return xtend(o, {
     keyEncoding: o.keyAsBuffer ? 'binary' : 'utf8',
@@ -187,13 +183,12 @@ TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
 TxDown.prototype._put = function (key, value, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var mapped = mapkey(key)
 
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
   }
 
-  this._keyLock(mapped, function (next) {
+  this._keyLock(key, function (next) {
     self._writes.push(xtend({
       type: 'put',
       key: key,
@@ -210,9 +205,8 @@ TxDown.prototype._put = function (key, value, options, cb) {
 TxDown.prototype._get = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var mapped = mapkey(key)
 
-  this._keyLock(mapped, function (next) {
+  this._keyLock(key, function (next) {
     var value = self._store.get(key)
     if (value !== undefined) {
       if (value === false) {
@@ -242,9 +236,8 @@ TxDown.prototype._get = function (key, options, cb) {
 TxDown.prototype._del = function (key, options, cb) {
   var self = this
   key = concat(this._getPrefix(options), key)
-  var mapped = mapkey(key)
 
-  this._keyLock(mapped, function (next) {
+  this._keyLock(key, function (next) {
     self._writes.push(xtend({
       type: 'del',
       key: key
@@ -267,7 +260,6 @@ TxDown.prototype._batch = function (operations, options, cb) {
   var self = this
   operations.forEach(function (o) {
     var key = concat(self._getPrefix(o), o.key)
-    var mapped = mapkey(key)
     var isKeyBuf = Buffer.isBuffer(o.key)
     if (o.type === 'put') {
       var isValBuf = Buffer.isBuffer(o.value)
@@ -275,7 +267,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       if (value === null || value === undefined) {
         value = isValBuf ? Buffer(0) : ''
       }
-      self._keyLock(mapped, function (next) {
+      self._keyLock(key, function (next) {
         self._writes.push({
           type: 'put',
           key: key,
@@ -289,7 +281,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
         next()
       }, null, options.unsafe)
     } else if (o.type === 'del') {
-      self._keyLock(mapped, function (next) {
+      self._keyLock(key, function (next) {
         self._writes.push({
           type: 'del',
           key: key,
@@ -331,8 +323,7 @@ TxDown.prototype.defer = function (fn) {
 
 TxDown.prototype.lock = function (key, options, cb) {
   key = concat(this._getPrefix(options), key)
-  var mapped = mapkey(key)
-  this._keyLock(mapped, function (next) {
+  this._keyLock(key, function (next) {
     next()
   })
 }
