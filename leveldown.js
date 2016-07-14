@@ -215,8 +215,6 @@ TxDown.prototype._get = function (key, options, cb) {
         next(null, options.asBuffer ? Buffer(0) : '')
       } else if (options.asBuffer && !Buffer.isBuffer(value)) {
         next(null, new Buffer(value))
-      } else if (!options.asBuffer && Buffer.isBuffer(value)) {
-        next(null, String(value))
       } else {
         next(null, value)
       }
