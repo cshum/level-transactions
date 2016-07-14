@@ -208,7 +208,7 @@ TxDown.prototype._get = function (key, options, cb) {
 
   this._keyLock(key, function (next) {
     var value = self._store.get(key)
-    if (value !== undefined) {
+    if (typeof value !== 'undefined') {
       if (value === false) {
         next(new Error('NotFound'))
       } else if (value === 'null' || value === 'undefined') {
@@ -258,6 +258,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
     return this.db.batch.apply(null, arguments)
   }
   var self = this
+  var tree = this._store
   operations.forEach(function (o) {
     var key = concat(self._getPrefix(o), o.key)
     var isKeyBuf = Buffer.isBuffer(o.key)
@@ -275,8 +276,8 @@ TxDown.prototype._batch = function (operations, options, cb) {
           keyEncoding: isKeyBuf ? 'binary' : 'utf8',
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
-        var iter = self._store.find(key)
-        self._store = iter.valid ? iter.update(value) : self._store.insert(key, value)
+        var iter = tree.find(key)
+        tree = iter.valid ? iter.update(value) : tree.insert(key, value)
 
         next()
       }, null, options.unsafe)
@@ -287,14 +288,15 @@ TxDown.prototype._batch = function (operations, options, cb) {
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
-        var iter = self._store.find(key)
-        self._store = iter.valid ? iter.update(false) : self._store.insert(key, false)
+        var iter = tree.find(key)
+        tree = iter.valid ? iter.update(false) : tree.insert(key, false)
 
         next()
       }, null, options.unsafe)
     }
   })
   self._queue.defer(function (done) {
+    self._store = tree
     cb()
     done()
   })
