@@ -3,6 +3,8 @@ var inherits = require('util').inherits
 var queue = require('async-depth-first')
 var abs = require('abstract-leveldown')
 var iterate = require('stream-iterate')
+var createRBT = require('functional-red-black-tree')
+var ltgt = require('ltgt')
 
 var END = '\uffff'
 var BATCH_TTL = 20 * 1000
@@ -32,7 +34,7 @@ function isNotFoundError (err) {
   return err && ((/notfound/i).test(err) || err.notFound)
 }
 
-function ltgt (prefix, x) {
+function ltgtOptions (prefix, x) {
   var r = !!x.reverse
   var at = {}
 
@@ -59,7 +61,7 @@ function ltgt (prefix, x) {
 function TxIterator (db, prefix, options) {
   abs.AbstractIterator.call(this)
 
-  var opts = ltgt(prefix, encoding(options))
+  var opts = ltgtOptions(prefix, encoding(options))
 
   // should emit key value object
   opts.keys = true
@@ -123,7 +125,7 @@ function TxDown (db, createLock, location) {
 
   this.db = db
 
-  this._store = {}
+  this._store = createRBT(ltgt.compare)
   this._writes = []
   this._createLock = createLock
 
@@ -198,7 +200,8 @@ TxDown.prototype._put = function (key, value, options, cb) {
       value: value
     }, encoding(options)))
 
-    self._store[mapped] = value
+    var iter = self._store.find(key)
+    self._store = iter.valid ? iter.update(value) : self._store.insert(key, value)
 
     next()
   }, cb, options.unsafe)
@@ -210,8 +213,8 @@ TxDown.prototype._get = function (key, options, cb) {
   var mapped = mapkey(key)
 
   this._keyLock(mapped, function (next) {
-    if (mapped in self._store) {
-      var value = self._store[mapped]
+    var value = self._store.get(key)
+    if (value !== undefined) {
       if (value === false) {
         next(new Error('NotFound'))
       } else if (value === 'null' || value === 'undefined') {
@@ -224,11 +227,11 @@ TxDown.prototype._get = function (key, options, cb) {
         next(null, value)
       }
     } else {
-      self.db.get(key, encoding(options), function (err, val) {
+      self.db.get(key, encoding(options), function (err, value) {
         if (err && err.notFound) {
-          self._store[mapped] = false
+          self._store = self._store.insert(key, false)
         } else if (!err) {
-          self._store[mapped] = val
+          self._store = self._store.insert(key, value)
         }
         next.apply(self, arguments)
       })
@@ -247,7 +250,8 @@ TxDown.prototype._del = function (key, options, cb) {
       key: key
     }, encoding(options)))
 
-    self._store[mapped] = false
+    var iter = self._store.find(key)
+    self._store = iter.valid ? iter.update(false) : self._store.insert(key, false)
 
     next()
   }, cb, options.unsafe)
@@ -279,7 +283,8 @@ TxDown.prototype._batch = function (operations, options, cb) {
           keyEncoding: isKeyBuf ? 'binary' : 'utf8',
           valueEncoding: isValBuf ? 'binary' : 'utf8'
         })
-        self._store[mapped] = value
+        var iter = self._store.find(key)
+        self._store = iter.valid ? iter.update(value) : self._store.insert(key, value)
 
         next()
       }, null, options.unsafe)
@@ -290,7 +295,8 @@ TxDown.prototype._batch = function (operations, options, cb) {
           key: key,
           keyEncoding: isKeyBuf ? 'binary' : 'utf8'
         })
-        self._store[mapped] = false
+        var iter = self._store.find(key)
+        self._store = iter.valid ? iter.update(false) : self._store.insert(key, false)
 
         next()
       }, null, options.unsafe)
