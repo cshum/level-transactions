@@ -4,10 +4,22 @@ var queue = require('async-depth-first')
 var abs = require('abstract-leveldown')
 var streamIterate = require('stream-iterate')
 var createRBT = require('functional-red-black-tree')
-var ltgt = require('ltgt')
 
 var END = '\uffff'
 var BATCH_TTL = 20 * 1000
+
+// ltgt.compare
+function compare (a, b) {
+  if(Buffer.isBuffer(a)) {
+    var l = Math.min(a.length, b.length)
+    for(var i = 0; i < l; i++) {
+      var cmp = a[i] - b[i]
+      if(cmp) return cmp
+    }
+    return a.length - b.length
+  }
+  return a < b ? -1 : a > b ? 1 : 0
+}
 
 function concat (prefix, key) {
   if (typeof key === 'string') {
@@ -29,6 +41,7 @@ function encoding (o) {
 function isNotFoundError (err) {
   return err && ((/notfound/i).test(err) || err.notFound)
 }
+function noop () { return true }
 
 function ltgtPrefix (prefix, x) {
   var r = !!x.reverse
@@ -55,56 +68,41 @@ function ltgtPrefix (prefix, x) {
 }
 
 function treeIterate (tree, options) {
-  var reverse = options.reverse
-  var start, end, test
-
-  function gt (value) {
-    return ltgt.compare(value, end) > 0
-  }
-  function gte (value) {
-    return ltgt.compare(value, end) >= 0
-  }
-  function lt (value) {
-    return ltgt.compare(value, end) < 0
-  }
-  function lte (value) {
-    return ltgt.compare(value, end) <= 0
-  }
+  var reverse = !!options.reverse
+  var test = noop
 
   if (!reverse) {
-    start = ltgt.lowerBound(options)
-    end = ltgt.upperBound(options)
-
-    if (typeof start === 'undefined') {
-      tree = tree.begin
-    } else if (ltgt.lowerBoundInclusive(options)) {
-      tree = tree.ge(start)
+    if (options.gt) {
+      tree = tree.gt(options.gt)
+    } else if (options.gte) {
+      tree = tree.ge(options.gte)
     } else {
-      tree = tree.gt(start)
+      tree = tree.begin
     }
-    if (end) {
-      if (ltgt.upperBoundInclusive(options)) {
-        test = lte
-      } else {
-        test = lt
+    if (options.lt) {
+      test = function (key) {
+        return compare(key, options.lt) < 0
+      }
+    } else if (options.lte) {
+      test = function (key) {
+        return compare(key, options.lte) <= 0
       }
     }
   } else {
-    start = ltgt.upperBound(options)
-    end = ltgt.lowerBound(options)
-
-    if (typeof start === 'undefined') {
-      tree = tree.end
-    } else if (ltgt.upperBoundInclusive(options)) {
-      tree = tree.le(start)
+    if (options.lt) {
+      tree = tree.lt(options.lt)
+    } else if (options.lte) {
+      tree = tree.le(options.lte)
     } else {
-      tree = tree.lt(start)
+      tree = tree.end
     }
-    if (end) {
-      if (ltgt.lowerBoundInclusive(options)) {
-        test = gte
-      } else {
-        test = gt
+    if (options.gt){
+      test = function (key) {
+        return compare(key, options.gt) > 0
+      }
+    } else if (options.gte) {
+      test = function (key) {
+        return compare(key, options.gte) >= 0
       }
     }
   }
@@ -183,7 +181,7 @@ TxIterator.prototype._next = function (cb) {
           }
         }
 
-        var comp = ltgt.compare(toKey(dataT), toKey(dataS))
+        var comp = compare(toKey(dataT), toKey(dataS))
         if (comp === 0) {
           nextS()
           nextT()
@@ -194,10 +192,7 @@ TxIterator.prototype._next = function (cb) {
             self._count++
             return cb(null, toKey(dataT), toValue(dataT))
           }
-        } else if (
-          (comp < 0 && !self._reverse) ||
-          (comp > 0 && self._reverse)
-        ) {
+        } else if ((comp < 0 && !self._reverse) || (comp > 0 && self._reverse)) {
           nextT()
           self._count++
           cb(null, toKey(dataS), toValue(dataS))
@@ -251,7 +246,7 @@ function TxDown (db, createLock, location) {
 
   this.db = db
 
-  this._store = createRBT(ltgt.compare)
+  this._store = createRBT(compare)
   this._writes = []
   this._createLock = createLock
 
