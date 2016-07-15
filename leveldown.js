@@ -2,7 +2,7 @@ var xtend = require('xtend')
 var inherits = require('util').inherits
 var queue = require('async-depth-first')
 var abs = require('abstract-leveldown')
-var iterate = require('stream-iterate')
+var streamIterate = require('stream-iterate')
 var createRBT = require('functional-red-black-tree')
 var ltgt = require('ltgt')
 
@@ -54,7 +54,75 @@ function ltgtOptions (prefix, x) {
   return x
 }
 
-function TxIterator (db, prefix, options) {
+function treeIterate (tree, options) {
+  var reverse = options.reverse
+  var start, end, test
+
+  function gt (value) {
+    return ltgt.compare(value, end) > 0
+  }
+  function gte (value) {
+    return ltgt.compare(value, end) >= 0
+  }
+  function lt (value) {
+    return ltgt.compare(value, end) < 0
+  }
+  function lte (value) {
+    return ltgt.compare(value, end) <= 0
+  }
+
+  if (!reverse) {
+    start = ltgt.lowerBound(options)
+    end = ltgt.upperBound(options)
+
+    if (typeof start === 'undefined') {
+      tree = tree.begin
+    } else if (ltgt.lowerBoundInclusive(options)) {
+      tree = tree.ge(start)
+    } else {
+      tree = tree.gt(start)
+    }
+    if (end) {
+      if (ltgt.upperBoundInclusive(options)) {
+        test = lte
+      } else {
+        test = lt
+      }
+    }
+  } else {
+    start = ltgt.upperBound(options)
+    end = ltgt.lowerBound(options)
+
+    if (typeof start === 'undefined') {
+      tree = tree.end
+    } else if (ltgt.upperBoundInclusive(options)) {
+      tree = tree.le(start)
+    } else {
+      tree = tree.lt(start)
+    }
+    if (end) {
+      if (ltgt.lowerBoundInclusive(options)) {
+        test = gte
+      } else {
+        test = gt
+      }
+    }
+  }
+
+  return function (cb) {
+    if (!tree.valid) return cb()
+    var key = tree.key
+    var value = tree.value
+    if (test && !test(key)) return cb()
+
+    cb(null, { key: key, value: value }, function next () {
+      if (!reverse) tree.next()
+      else tree.prev()
+    })
+  }
+}
+
+function TxIterator (db, tree, prefix, options) {
   abs.AbstractIterator.call(this)
 
   var opts = ltgtOptions(prefix, encoding(options))
@@ -64,28 +132,86 @@ function TxIterator (db, prefix, options) {
   opts.values = true
 
   this._opts = opts
+  this._reverse = !!options.reverse
   this._stream = db.createReadStream(opts)
-  this._iterate = iterate(this._stream)
+  this._streamIterate = streamIterate(this._stream)
+  this._treeIterate = treeIterate(tree, options)
   this._len = prefix.length
+  this._count = 0
+  this._limit = options.limit === -1 ? Infinity : options.limit
 }
 
 inherits(TxIterator, abs.AbstractIterator)
 
 TxIterator.prototype._next = function (cb) {
   var self = this
-  this._iterate(function (err, data, next) {
-    if (err) return cb(err)
-    if (!data) return cb()
-    next()
+  function toKey (data) {
     var key = data.key.slice(self._len)
-    var value = data.value
     if (typeof key === 'string' && self._opts.keyAsBuffer) {
       key = new Buffer(key)
     }
-    if (typeof key === 'string' && self._opts.valueAsBuffer) {
+    return key
+  }
+
+  function toValue (data) {
+    var value = data.value
+    if (value === false) return false
+    if (typeof value === 'string' && self._opts.valueAsBuffer) {
       value = new Buffer(value)
     }
-    cb(err, key, value)
+    return value
+  }
+
+  if (self._count >= self._limit) return cb()
+
+  self._treeIterate(function (err, dataT, nextT) {
+    if (err) return cb(err)
+    self._streamIterate(function (err, dataS, nextS) {
+      if (err) return cb(err)
+      if (!dataT && !dataS) return cb()
+      if (!dataT) {
+        nextS()
+        self._count++
+        return cb(null, toKey(dataS), toValue(dataS))
+      }
+      if (!dataS) {
+        nextT()
+        if (toValue(dataT) === false) {
+          return self._next(cb)
+        } else {
+          self._count++
+          return cb(null, toKey(dataT), toValue(dataT))
+        }
+      }
+
+      var comp = ltgt.compare(toKey(dataT), toKey(dataS))
+      if (comp === 0) {
+        nextS()
+        nextT()
+        // deleted
+        if (toValue(dataT) === false) {
+          return self._next(cb)
+        } else {
+          self._count++
+          return cb(null, toKey(dataT), toValue(dataT))
+        }
+      } else if (
+        (comp < 0 && !self._reverse) ||
+        (comp > 0 && self._reverse)
+      ) {
+        nextT()
+        self._count++
+        cb(null, toKey(dataS), toValue(dataS))
+      } else {
+        nextS()
+        if (toValue(dataT) === false) {
+          return self._next(cb)
+        } else {
+          self._count++
+          return cb(null, toKey(dataT), toValue(dataT))
+        }
+      }
+    })
   })
 }
 
@@ -93,7 +219,8 @@ TxIterator.prototype._end = function (cb) {
   if (this._stream && this._stream.destroy) {
     this._stream.destroy()
     delete this._stream
-    delete this._iterate
+    delete this._streamIterate
+    delete this._treeIterate
   }
   process.nextTick(cb)
 }
@@ -301,7 +428,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
 }
 
 TxDown.prototype._iterator = function (options) {
-  return new TxIterator(this.db, this._getPrefix(options), options)
+  return new TxIterator(this.db, this._store, this._getPrefix(options), options)
 }
 
 TxDown.prototype._isBuffer = function (obj) {
