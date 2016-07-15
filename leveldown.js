@@ -30,7 +30,7 @@ function isNotFoundError (err) {
   return err && ((/notfound/i).test(err) || err.notFound)
 }
 
-function ltgtOptions (prefix, x) {
+function ltgtPrefix (prefix, x) {
   var r = !!x.reverse
   var at = {}
 
@@ -113,7 +113,7 @@ function treeIterate (tree, options) {
     if (!tree.valid) return cb()
     var key = tree.key
     var value = tree.value
-    if (test && !test(key)) return cb()
+    if (!test(key)) return cb()
 
     cb(null, { key: key, value: value }, function next () {
       if (!reverse) tree.next()
@@ -125,7 +125,7 @@ function treeIterate (tree, options) {
 function TxIterator (db, tree, prefix, options) {
   abs.AbstractIterator.call(this)
 
-  var opts = ltgtOptions(prefix, encoding(options))
+  var opts = ltgtPrefix(prefix, encoding(options))
 
   // should emit key value object
   opts.keys = true
@@ -135,7 +135,7 @@ function TxIterator (db, tree, prefix, options) {
   this._reverse = !!options.reverse
   this._stream = db.createReadStream(opts)
   this._streamIterate = streamIterate(this._stream)
-  this._treeIterate = treeIterate(tree, options)
+  this._treeIterate = treeIterate(tree, opts)
   this._len = prefix.length
   this._count = 0
   this._limit = options.limit === -1 ? Infinity : options.limit
@@ -162,57 +162,60 @@ TxIterator.prototype._next = function (cb) {
     return value
   }
 
-  if (self._count >= self._limit) return cb()
-
-  self._treeIterate(function (err, dataT, nextT) {
-    if (err) return cb(err)
-    self._streamIterate(function (err, dataS, nextS) {
+  function loop () {
+    self._treeIterate(function (err, dataT, nextT) {
       if (err) return cb(err)
-      if (!dataT && !dataS) return cb()
-      if (!dataT) {
-        nextS()
-        self._count++
-        return cb(null, toKey(dataS), toValue(dataS))
-      }
-      if (!dataS) {
-        nextT()
-        if (toValue(dataT) === false) {
-          return self._next(cb)
-        } else {
+      self._streamIterate(function (err, dataS, nextS) {
+        if (err) return cb(err)
+        if (!dataT && !dataS) return cb()
+        if (!dataT) {
+          nextS()
           self._count++
-          return cb(null, toKey(dataT), toValue(dataT))
+          return cb(null, toKey(dataS), toValue(dataS))
         }
-      }
+        if (!dataS) {
+          nextT()
+          if (toValue(dataT) === false) {
+            return loop()
+          } else {
+            self._count++
+            return cb(null, toKey(dataT), toValue(dataT))
+          }
+        }
 
-      var comp = ltgt.compare(toKey(dataT), toKey(dataS))
-      if (comp === 0) {
-        nextS()
-        nextT()
-        // deleted
-        if (toValue(dataT) === false) {
-          return self._next(cb)
-        } else {
+        var comp = ltgt.compare(toKey(dataT), toKey(dataS))
+        if (comp === 0) {
+          nextS()
+          nextT()
+          // deleted
+          if (toValue(dataT) === false) {
+            return loop()
+          } else {
+            self._count++
+            return cb(null, toKey(dataT), toValue(dataT))
+          }
+        } else if (
+          (comp < 0 && !self._reverse) ||
+          (comp > 0 && self._reverse)
+        ) {
+          nextT()
           self._count++
-          return cb(null, toKey(dataT), toValue(dataT))
-        }
-      } else if (
-        (comp < 0 && !self._reverse) ||
-        (comp > 0 && self._reverse)
-      ) {
-        nextT()
-        self._count++
-        cb(null, toKey(dataS), toValue(dataS))
-      } else {
-        nextS()
-        if (toValue(dataT) === false) {
-          return self._next(cb)
+          cb(null, toKey(dataS), toValue(dataS))
         } else {
-          self._count++
-          return cb(null, toKey(dataT), toValue(dataT))
+          nextS()
+          if (toValue(dataT) === false) {
+            return loop()
+          } else {
+            self._count++
+            return cb(null, toKey(dataT), toValue(dataT))
+          }
         }
-      }
+      })
     })
-  })
+  }
+
+  if (self._count >= self._limit) return cb()
+  loop()
 }
 
 TxIterator.prototype._end = function (cb) {
