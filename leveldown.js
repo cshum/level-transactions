@@ -130,6 +130,8 @@ function TxIterator (db, tree, prefix, options) {
   opts.values = true
 
   this._opts = opts
+  this.keyAsBuffer = options.keyAsBuffer !== false
+  this.valueAsBuffer = options.valueAsBuffer !== false
   this._reverse = !!options.reverse
   this._stream = db.createReadStream(opts)
   this._streamIterate = streamIterate(this._stream)
@@ -145,18 +147,14 @@ TxIterator.prototype._next = function (cb) {
   var self = this
   function toKey (data) {
     var key = data.key.slice(self._len)
-    if (typeof key === 'string' && self._opts.keyAsBuffer) {
-      key = new Buffer(key)
-    }
+    if (self.keyAsBuffer) key = new Buffer(key)
     return key
   }
 
   function toValue (data) {
     var value = data.value
     if (value === false) return false
-    if (typeof value === 'string' && self._opts.valueAsBuffer) {
-      value = new Buffer(value)
-    }
+    if (self.valueAsBuffer) value = new Buffer(value)
     return value
   }
 
@@ -312,7 +310,9 @@ TxDown.prototype._put = function (key, value, options, cb) {
   if (value === null || value === undefined) {
     value = options.asBuffer ? Buffer(0) : ''
   }
-
+  if (!options.asBuffer && typeof value !== 'string') {
+    value = String(value)
+  }
   this._keyLock(key, function (next) {
     self._writes.push(xtend({
       type: 'put',
@@ -391,6 +391,7 @@ TxDown.prototype._batch = function (operations, options, cb) {
       if (value === null || value === undefined) {
         value = isValBuf ? Buffer(0) : ''
       }
+      if (!isValBuf && typeof value !== 'string') value = String(value)
       self._keyLock(key, function (next) {
         self._writes.push({
           type: 'put',
