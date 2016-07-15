@@ -10,11 +10,11 @@ var BATCH_TTL = 20 * 1000
 
 // ltgt.compare
 function compare (a, b) {
-  if(Buffer.isBuffer(a)) {
+  if (Buffer.isBuffer(a)) {
     var l = Math.min(a.length, b.length)
-    for(var i = 0; i < l; i++) {
+    for (var i = 0; i < l; i++) {
       var cmp = a[i] - b[i]
-      if(cmp) return cmp
+      if (cmp) return cmp
     }
     return a.length - b.length
   }
@@ -96,7 +96,7 @@ function treeIterate (tree, options) {
     } else {
       tree = tree.end
     }
-    if (options.gt){
+    if (options.gt) {
       test = function (key) {
         return compare(key, options.gt) > 0
       }
