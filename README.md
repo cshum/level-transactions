@@ -1,10 +1,14 @@
 # level-transactions
 
-Transaction manager for [LevelDB](https://github.com/rvagg/node-levelup): 
-two-phase locking, snapshot isolation, atomic commits.
-Works with [SublevelUP](https://github.com/cshum/sublevelup/).
+Transaction layer for [LevelDB](https://github.com/rvagg/node-levelup).
 
 [![Build Status](https://travis-ci.org/cshum/level-transactions.svg?branch=master)](https://travis-ci.org/cshum/level-transactions)
+
+level-transaction provides a in-memory locking mechanism for key based operations, isolation and atomic commits.
+Also works across sublevels with [SublevelUP](https://github.com/cshum/sublevelup/).
+
+level-transaction@2 rewrite introduces full compatibility with all common methods of [LevelUP](https://github.com/Level/levelup).
+
 
 ```bash
 npm install level-transactions
@@ -58,8 +62,7 @@ level-transactions maintain stack + mutexes control to ensure linearizability:
 3. Upon acquiring locks, each transaction object holds a snapshot isolation. Results only persist upon successful commit, using `batch()` of LevelDB.
 
 ### Limitations
-* Mutexes are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
-* "Range locks" with `createReadStream` is not yet supported.
+* Locks are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
 
 ## API
 
