@@ -171,10 +171,11 @@ TxIterator.prototype._next = function (callback) {
     var value = toValue(data)
     if (value === false) return loop() // skip if deleted
     self._count++
-    callback(null, toKey(data), toValue(data))
+    callback(null, key, value)
   }
 
   function loop () {
+    if (self._count >= self._limit) return cb()
     self._treeIterate(function (err, dataT, nextT) {
       if (err) return cb(err)
       self._streamIterate(function (err, dataS, nextS) {
@@ -207,7 +208,6 @@ TxIterator.prototype._next = function (callback) {
     })
   }
 
-  if (self._count >= self._limit) return cb()
   loop()
 }
 
