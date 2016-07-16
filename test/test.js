@@ -4,6 +4,7 @@ var sublevel = require('sublevelup')
 var leveldown = require('leveldown')
 var transaction = require('../')
 var lock = require('../lock')
+var cbs = require('callback-stream').obj
 
 require('rimraf').sync('./test/db')
 
@@ -371,6 +372,62 @@ test('Rollback', function (t) {
           t.equal(val, 'boo', 'tx2 committed')
         })
       })
+    })
+  })
+})
+
+test('ReadStream', function (t) {
+  var db = newDB()
+  var tx = transaction(db)
+
+  db.batch([
+    {type: 'put', key: 'a', value: 'a'},
+    {type: 'put', key: 'b', value: 'b'},
+    {type: 'put', key: 'c', value: 'c'}
+  ], function (err) {
+    t.error(err)
+    tx.defer(function (cb) {
+      tx.keyStream().pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a', 'b', 'c'], 'stream')
+        cb(err)
+      }))
+    })
+    tx.batch([
+      {type: 'del', key: 'asdfsadf'},
+      {type: 'del', key: 'b'},
+      {type: 'put', key: 'd', value: 'd'}
+    ])
+    tx.defer(function (cb) {
+      tx.keyStream().pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a', 'c', 'd'], 'tree merge stream')
+        cb(err)
+      }))
+    })
+    tx.defer(function (cb) {
+      tx.keyStream({ limit: 2 }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a', 'c'], 'tree merge stream limit')
+        cb(err)
+      }))
+    })
+    tx.defer(function (cb) {
+      tx.keyStream({ limit: 2, reverse: true }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['d', 'c'], 'tree merge stream limit & reverse')
+        cb(err)
+      }))
+    })
+    tx.defer(function (cb) {
+      tx.keyStream({ gte: 'b' }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['c', 'd'], 'tree merge stream range')
+        cb(err)
+      }))
+    })
+    tx.commit(function (err) {
+      t.error(err)
+      db.keyStream().pipe(cbs(function (err, list) {
+        t.error(err)
+        t.deepEqual(list, ['a', 'c', 'd'], 'committed')
+        t.end()
+      }))
     })
   })
 })

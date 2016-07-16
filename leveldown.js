@@ -43,7 +43,8 @@ function isNotFoundError (err) {
 }
 function noop () { return true }
 
-function ltgtPrefix (prefix, x) {
+function ltgtPrefix (prefix, options) {
+  var x = xtend(options)
   var r = !!x.reverse
   var at = {}
 
@@ -51,6 +52,7 @@ function ltgtPrefix (prefix, x) {
     at[key] = x[key]
     delete x[key]
   })
+  delete x.limit // dont set limit on iterate stream
 
   if (at.gte) x.gte = concat(prefix, at.gte)
   else if (at.gt) x.gt = concat(prefix, at.gt)
@@ -70,8 +72,12 @@ function ltgtPrefix (prefix, x) {
 function treeIterate (tree, options) {
   var reverse = !!options.reverse
   var test = noop
+  var next
 
   if (!reverse) {
+    next = function () {
+      tree.next()
+    }
     if (options.gt) {
       tree = tree.gt(options.gt)
     } else if (options.gte) {
@@ -89,6 +95,9 @@ function treeIterate (tree, options) {
       }
     }
   } else {
+    next = function () {
+      tree.prev()
+    }
     if (options.lt) {
       tree = tree.lt(options.lt)
     } else if (options.lte) {
@@ -113,10 +122,7 @@ function treeIterate (tree, options) {
     var value = tree.value
     if (!test(key)) return cb()
 
-    cb(null, { key: key, value: value }, function next () {
-      if (!reverse) tree.next()
-      else tree.prev()
-    })
+    cb(null, { key: key, value: value }, next)
   }
 }
 
@@ -143,7 +149,7 @@ function TxIterator (db, tree, prefix, options) {
 
 inherits(TxIterator, abs.AbstractIterator)
 
-TxIterator.prototype._next = function (cb) {
+TxIterator.prototype._next = function (callback) {
   var self = this
   function toKey (data) {
     var key = data.key.slice(self._len)
@@ -158,6 +164,16 @@ TxIterator.prototype._next = function (cb) {
     return value
   }
 
+  function cb (err, data) {
+    if (err) return callback(err)
+    if (!data) return callback()
+    var key = toKey(data)
+    var value = toValue(data)
+    if (value === false) return loop() // skip if deleted
+    self._count++
+    callback(null, toKey(data), toValue(data))
+  }
+
   function loop () {
     self._treeIterate(function (err, dataT, nextT) {
       if (err) return cb(err)
@@ -166,42 +182,26 @@ TxIterator.prototype._next = function (cb) {
         if (!dataT && !dataS) return cb()
         if (!dataT) {
           nextS()
-          self._count++
-          return cb(null, toKey(dataS), toValue(dataS))
+          return cb(null, dataS)
         }
         if (!dataS) {
           nextT()
-          if (toValue(dataT) === false) {
-            return loop()
-          } else {
-            self._count++
-            return cb(null, toKey(dataT), toValue(dataT))
-          }
+          return cb(null, dataT)
         }
-
         var comp = compare(toKey(dataT), toKey(dataS))
         if (comp === 0) {
           nextS()
           nextT()
-          // deleted
-          if (toValue(dataT) === false) {
-            return loop()
-          } else {
-            self._count++
-            return cb(null, toKey(dataT), toValue(dataT))
-          }
+          // both exists, tree override stream
+          return cb(null, dataT)
         } else if ((comp < 0 && !self._reverse) || (comp > 0 && self._reverse)) {
+          // tree less than stream, pick tree
           nextT()
-          self._count++
-          cb(null, toKey(dataS), toValue(dataS))
+          return cb(null, dataT)
         } else {
+          // tree greater than stream, pick stream
           nextS()
-          if (toValue(dataT) === false) {
-            return loop()
-          } else {
-            self._count++
-            return cb(null, toKey(dataT), toValue(dataT))
-          }
+          return cb(null, dataS)
         }
       })
     })
