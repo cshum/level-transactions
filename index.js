@@ -110,8 +110,9 @@ Transaction.prototype._getOptions = function (opts) {
 }
 
 Transaction.prototype._getCallback = function () {
-  if (isFunction(arguments[arguments.length - 1])) {
-    return arguments[arguments.length - 1]
+  var args = Array.prototype.slice.call(arguments)
+  for (var l = args.length, i = l - 1; i >= 0; i--) {
+    if (isFunction(args[i])) return args[i]
   }
   return noop
 }
@@ -137,9 +138,8 @@ Transaction.prototype.commit = function (cb) {
 
 Transaction.prototype.rollback = function (err, cb) {
   var self = this
-  err = err && !isFunction(err) ? err : null
   cb = this._getCallback(err, cb)
-  this.db._rollback(err, function (err) {
+  this.db._rollback(err && !isFunction(err) ? err : null, function (err) {
     self.close(function (errClose) {
       cb(err || errClose || null)
     })

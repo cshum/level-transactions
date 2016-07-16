@@ -378,40 +378,78 @@ test('Rollback', function (t) {
 
 test('ReadStream', function (t) {
   var db = newDB()
-  var tx = transaction(db)
 
   db.batch([
+    {type: 'put', key: '1', value: '1'},
     {type: 'put', key: 'a', value: 'a'},
     {type: 'put', key: 'b', value: 'b'},
     {type: 'put', key: 'c', value: 'c'}
   ], function (err) {
     t.error(err)
-    tx.defer(function (cb) {
-      tx.keyStream().pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a', 'b', 'c'], 'stream')
-        cb(err)
-      }))
+    var tx = transaction(db)
+    var tx2 = transaction(db)
+    ;[tx, tx2].forEach(function (tx) {
+      tx.defer(function (cb) {
+        tx.keyStream().pipe(cbs(function (err, list) {
+          t.deepEqual(list, ['1', 'a', 'b', 'c'], 'stream')
+          cb(err)
+        }))
+      })
     })
     tx.batch([
       {type: 'del', key: 'asdfsadf'},
       {type: 'del', key: 'b'},
       {type: 'put', key: 'd', value: 'd'}
     ])
+    tx2.batch([
+      {type: 'del', key: '1'},
+      {type: 'del', key: 'c'}
+    ])
     tx.defer(function (cb) {
       tx.keyStream().pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a', 'c', 'd'], 'tree merge stream')
+        t.deepEqual(list, ['1', 'a', 'c', 'd'], 'tree merge stream')
+        cb(err)
+      }))
+    })
+    tx2.defer(function (cb) {
+      tx2.keyStream().pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a', 'b'], 'tree merge stream 2')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
-      tx.keyStream({ limit: 2 }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a', 'c'], 'tree merge stream limit')
+      tx.keyStream({ limit: 3 }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['1', 'a', 'c'], 'tree merge stream limit')
+        cb(err)
+      }))
+    })
+    tx2.defer(function (cb) {
+      tx2.keyStream({ limit: 1 }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a'], 'tree merge stream limit')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
-      tx.keyStream({ limit: 2, reverse: true }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['d', 'c'], 'tree merge stream limit & reverse')
+      tx.keyStream({ limit: 3, reverse: true }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['d', 'c', 'a'], 'tree merge stream limit & reverse')
+        cb(err)
+      }))
+    })
+    tx2.defer(function (cb) {
+      tx2.keyStream({ limit: 1, reverse: true }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['b'], 'tree merge stream limit & reverse')
+        cb(err)
+      }))
+    })
+    tx.defer(function (cb) {
+      tx.keyStream({ lt: 'd' }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['1', 'a', 'c'], 'tree merge stream range')
+        cb(err)
+      }))
+    })
+    tx2.defer(function (cb) {
+      tx2.keyStream({ lt: 'b' }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['a'], 'tree merge stream range')
         cb(err)
       }))
     })
@@ -421,13 +459,22 @@ test('ReadStream', function (t) {
         cb(err)
       }))
     })
-    tx.commit(function (err) {
-      t.error(err)
-      db.keyStream().pipe(cbs(function (err, list) {
-        t.error(err)
-        t.deepEqual(list, ['a', 'c', 'd'], 'committed')
-        t.end()
+    tx2.defer(function (cb) {
+      tx2.keyStream({ gte: 'b' }).pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['b'], 'tree merge stream range')
+        cb(err)
       }))
+    })
+    tx2.rollback(function (err) {
+      t.error(err)
+      tx.commit(function (err) {
+        t.error(err)
+        db.keyStream().pipe(cbs(function (err, list) {
+          t.error(err)
+          t.deepEqual(list, ['1', 'a', 'c', 'd'], 'committed')
+          t.end()
+        }))
+      })
     })
   })
 })
