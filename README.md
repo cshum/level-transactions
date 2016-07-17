@@ -8,7 +8,7 @@ Transaction layer for Node.js [LevelDB](https://github.com/rvagg/node-levelup).
 npm install level-transactions
 ```
 
-level-transaction provides a in-memory locking mechanism for key based operations, isolation and atomic commits.
+level-transactions provides a in-memory locking mechanism for key based operations, isolation and atomic commits.
 Also works across sublevels using [SublevelUP](https://github.com/cshum/sublevelup/).
 
 level-transaction@2 rewrite introduces full compatibility with all common methods of [LevelUP](https://github.com/Level/levelup).
@@ -30,20 +30,19 @@ var tx = transaction(db)
 
 Transaction instance inherits LevelUP,
 so one can expect all common methods of [LevelUP](https://github.com/Level/levelup#api) can be used with same behaviour.
-The difference comes where key based operations are linearizable. Also result set are isolated within transaction, only applied to database atomically on `.commit()` or discarded on `.rollback()`.
+The difference comes where key based operations are linearizable. Also result set are isolated within transaction, only persists atomically upon `.commit()` or discarded on `.rollback()`.
 
-### Key Based Operations
-
-The following methods performs exclusive lock on keys applied.
+### Key Operations
 
 * [**`tx.put(key, value, [options], [callback])`**](https://github.com/Level/levelup#put)
 * [**`tx.get(key, [options], [callback])`**](https://github.com/Level/levelup#get)
 * [**`tx.del(key, [options], [callback])`**](https://github.com/Level/levelup#del)
 * [**`tx.batch(array, [options], [callback])`**](https://github.com/Level/levelup#batch)
 
-Under the hood, it maintains an internal queue where operations within transaction executed through correct sequence.
+Key based operations perform exclusive lock on keys applied.
+Under the hood, it maintains an internal queue where operations within transaction executed sequentially.
 
-Keys acquired during lock phase of transaction ensure corresponding operations mutually exclusive.
+Keys acquired during lock phase of transaction ensure operations mutually exclusive.
 This makes `.get()` followed by a `.put()` a safe update operation.
 
 All errors except `NotFoundError` will cause a rollback, as non-exist item is not considered an error in transaction.
@@ -77,11 +76,46 @@ tx.commit(function () {
 
 ```
 
-### Range Based Operations
+### Range Operations
 
 * [**`tx.createReadStream([options])`**](https://github.com/Level/levelup#createReadStream)
 * [**`tx.createKeyStream([options])`**](https://github.com/Level/levelup#createKeyStream)
 * [**`tx.createValueStream([options])`**](https://github.com/Level/levelup#createValueStream)
+
+Range based operations in level-transactions do NOT perform any locking.
+Instead it adopts LevelDOWN's behaviour using [implicit snapshot](https://github.com/level/leveldown/#snapshots) at the time a read stream created.
+
+This returns merged result set from database,
+with write operations occurred within transaction.
+
+```js
+db.batch([
+  {type: 'put', key: 'a', value: 'a'},
+  {type: 'put', key: 'b', value: 'b'},
+  {type: 'put', key: 'c', value: 'c'}
+], function (err) {
+  db.createKeyStream().on('data', ...) // 'a', 'b', 'c'
+  ...
+
+  var tx = transaction(db)
+  tx.batch([
+    {type: 'del', key: 'a'}
+    {type: 'put', key: 'd', value: 'd'}
+  ], function (err) {
+    tx.createKeyStream().on('data', ...) // 'b', 'c', 'd'
+    ...
+  })
+
+  var tx2 = transaction(db)
+  tx2.batch([
+    {type: 'put', key: '0', value: '0'}
+    {type: 'del', key: 'b'}
+  ], function (err) {
+    tx2.createKeyStream().on('data', ...) // '0', 'a', 'c'
+    ...
+  })
+})
+```
 
 ### Transaction Specific
 
@@ -153,10 +187,8 @@ tx.put('foo', 'world', { prefix: db }) // put db
 tx.get('foo', cb) // get sub
 tx.get('foo', { prefix: db }, cb) // get db
 
+...
 ```
-
-### Limitations
-* Locks are held in-memory. This assumes typical usage of LevelDB, which runs on a single Node.js process. Usage on a distributed environment is not yet supported.
 
 ## License
 
