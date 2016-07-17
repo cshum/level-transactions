@@ -377,6 +377,7 @@ test('Rollback', function (t) {
 })
 
 test('ReadStream', function (t) {
+  t.plan(17)
   var db = newDB()
 
   db.batch([
@@ -388,13 +389,17 @@ test('ReadStream', function (t) {
     t.error(err)
     var tx = transaction(db)
     var tx2 = transaction(db)
-    ;[tx, tx2].forEach(function (tx) {
-      tx.defer(function (cb) {
-        tx.keyStream().pipe(cbs(function (err, list) {
-          t.deepEqual(list, ['1', 'a', 'b', 'c'], 'stream')
-          cb(err)
-        }))
-      })
+    tx.defer(function (cb) {
+      tx.keyStream().pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['1', 'a', 'b', 'c'], 'tx db data correct')
+        cb(err)
+      }))
+    })
+    tx2.defer(function (cb) {
+      tx2.keyStream().pipe(cbs(function (err, list) {
+        t.deepEqual(list, ['1', 'a', 'b', 'c'], 'tx2 db data correct')
+        cb(err)
+      }))
     })
     tx.batch([
       {type: 'del', key: 'asdfsadf'},
@@ -407,71 +412,71 @@ test('ReadStream', function (t) {
     ])
     tx.defer(function (cb) {
       tx.keyStream().pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['1', 'a', 'c', 'd'], 'tree merge stream')
+        t.deepEqual(list, ['1', 'a', 'c', 'd'], 'tx tree merge stream')
         cb(err)
       }))
     })
     tx2.defer(function (cb) {
       tx2.keyStream().pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a', 'b'], 'tree merge stream 2')
+        t.deepEqual(list, ['a', 'b'], 'tx2 tree merge stream')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
       tx.keyStream({ limit: 3 }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['1', 'a', 'c'], 'tree merge stream limit')
+        t.deepEqual(list, ['1', 'a', 'c'], 'tx tree merge stream limit')
         cb(err)
       }))
     })
     tx2.defer(function (cb) {
       tx2.keyStream({ limit: 1 }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a'], 'tree merge stream limit')
+        t.deepEqual(list, ['a'], 'tx2 tree merge stream limit')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
       tx.keyStream({ limit: 3, reverse: true }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['d', 'c', 'a'], 'tree merge stream limit & reverse')
+        t.deepEqual(list, ['d', 'c', 'a'], 'tx tree merge stream limit & reverse')
         cb(err)
       }))
     })
     tx2.defer(function (cb) {
       tx2.keyStream({ limit: 1, reverse: true }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['b'], 'tree merge stream limit & reverse')
+        t.deepEqual(list, ['b'], 'tx2 tree merge stream limit & reverse')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
       tx.keyStream({ lt: 'd' }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['1', 'a', 'c'], 'tree merge stream range')
+        t.deepEqual(list, ['1', 'a', 'c'], 'tx tree merge stream lt')
         cb(err)
       }))
     })
     tx2.defer(function (cb) {
       tx2.keyStream({ lt: 'b' }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['a'], 'tree merge stream range')
+        t.deepEqual(list, ['a'], 'tx2 tree merge stream lt')
         cb(err)
       }))
     })
     tx.defer(function (cb) {
       tx.keyStream({ gte: 'b' }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['c', 'd'], 'tree merge stream range')
+        t.deepEqual(list, ['c', 'd'], 'tx tree merge stream gte')
         cb(err)
       }))
     })
     tx2.defer(function (cb) {
       tx2.keyStream({ gte: 'b' }).pipe(cbs(function (err, list) {
-        t.deepEqual(list, ['b'], 'tree merge stream range')
+        t.deepEqual(list, ['b'], 'tx2 tree merge stream gte')
         cb(err)
       }))
     })
-    tx2.rollback(function (err) {
+    tx.commit(function (err) {
       t.error(err)
-      tx.commit(function (err) {
+      tx2.rollback(function (err) {
         t.error(err)
         db.keyStream().pipe(cbs(function (err, list) {
           t.error(err)
-          t.deepEqual(list, ['1', 'a', 'c', 'd'], 'committed')
+          t.deepEqual(list, ['1', 'a', 'c', 'd'], 'tx commit tx2 rollback result')
           t.end()
         }))
       })
