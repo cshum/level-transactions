@@ -1,7 +1,7 @@
 {
   "name": "level-transactions",
-  "version": "2.1.1",
-  "description": "Transaction manager for LevelDB.",
+  "version": "2.1.2",
+  "description": "Transaction layer for LevelDB",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
     "test": "standard && tape test/*.js"
