@@ -32,7 +32,7 @@ Transaction instance inherits LevelUP,
 so one can expect all common methods of [LevelUP](https://github.com/Level/levelup#api) can be used with same behaviour.
 The difference comes where key based operations are linearizable. Also result set are isolated within transaction, only persists atomically upon `.commit()` or discarded on `.rollback()`.
 
-### Key Operations
+### Key Based Operations
 
 * [**`tx.put(key, value, [options], [callback])`**](https://github.com/Level/levelup#put)
 * [**`tx.get(key, [options], [callback])`**](https://github.com/Level/levelup#get)
@@ -40,9 +40,9 @@ The difference comes where key based operations are linearizable. Also result se
 * [**`tx.batch(array, [options], [callback])`**](https://github.com/Level/levelup#batch)
 
 Key based operations perform exclusive lock on keys applied.
-Under the hood, it maintains an internal queue where operations within transaction executed sequentially.
+Under the hood, it maintains an internal queue such that operations within transaction executed sequentially.
 
-Keys acquired during lock phase of transaction ensure operations mutually exclusive.
+Keys acquired during lock phase of transaction ensure mutually exclusive access.
 This makes `.get()` followed by a `.put()` a safe update operation.
 
 All errors except `NotFoundError` will cause a rollback, as non-exist item is not considered an error in transaction.
@@ -76,17 +76,16 @@ tx.commit(function () {
 
 ```
 
-### Range Operations
+### Range Based Operations
 
 * [**`tx.createReadStream([options])`**](https://github.com/Level/levelup#createReadStream)
 * [**`tx.createKeyStream([options])`**](https://github.com/Level/levelup#createKeyStream)
 * [**`tx.createValueStream([options])`**](https://github.com/Level/levelup#createValueStream)
 
 Range based operations in level-transactions do NOT perform any locking.
-Instead it adopts LevelDOWN's behaviour using [implicit snapshot](https://github.com/level/leveldown/#snapshots) at the time a read stream created.
+Instead it adopts LevelDOWN's behaviour, [implicit snapshot](https://github.com/level/leveldown/#snapshots) at the time a read stream created.
 
-This returns merged result set from database,
-with write operations occurred within transaction.
+This returns merged result set from database with write operations applied within transaction.
 
 ```js
 db.batch([
@@ -121,14 +120,14 @@ db.batch([
 
 #### `tx.commit([callback])`
 
-`commit()` commit writes, release locks acquired and close transaction.
+Commit writes, release locks acquired and close transaction.
 
 Uses levelup's `batch()` under the hood.
 Changes are written to store atomically upon successful commit, or discarded upon error.
 
 #### `tx.rollback([error], [callback])`
 
-`rollback()` release locks acquired and close transaction. Can optionally specify `error`.
+Release locks acquired and close transaction. Can optionally specify `error`.
 Changes are discarded and `commit()` callback with the specified error.
 
 ```js
@@ -144,7 +143,7 @@ tx.commit(function (err) {
 
 #### `tx.defer(fn)`
 
-A utility method for deferring execution order,
+Utility method for deferring execution order,
 which adds an asynchronous function `fn(cb)` to the internal queue. 
 Callback `cb(err)` with error argument will result in rollback of transaction.
 
@@ -163,7 +162,6 @@ tx.get('foo', function (err, val) {
   //NotFoundError after del
 })
 ```
-
 
 ### Sublevel
 
