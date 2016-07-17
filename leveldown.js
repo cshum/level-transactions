@@ -296,7 +296,6 @@ TxDown.prototype._keyLock = function (key, fn, cb, unsafe) {
     }
     if (unsafe) return fn(next)
     self._lock.acquire(key, function (err) {
-      if (err && err.released) return
       if (err) return done(err)
       fn(next)
     })
