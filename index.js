@@ -129,9 +129,13 @@ Transaction.prototype.commit = function (cb) {
   this.db._commit(function (err) {
     if (self.isClosed()) return
     isCommitted = true
-    self.close(function (errClose) {
-      cb(err || errClose || null)
-    })
+    if (err) {
+      self.rollback(err, function (errRB) {
+        cb(err)
+      })
+    } else {
+      self.close(cb)
+    }
   })
   return this
 }
