@@ -1,21 +1,21 @@
 var test = require('tape')
 var levelup = require('levelup')
-var sublevel = require('sublevelup')
 var leveldown = require('leveldown')
+var sublevel = require('sublevelup')
 var transaction = require('../')
 var lock = require('../lock')
 var cbs = require('callback-stream').obj
+var xtend = require('xtend')
 
-require('rimraf').sync('./test/db')
+require('rimraf').sync('./test/db*')
 
-var db = sublevel(levelup('./test/db', {
-  db: leveldown,
-  keyEncoding: 'utf8',
-  valueEncoding: 'json'
-}))
 var count = 0
 function newDB (opts) {
-  return db.sublevel(String(count++), opts)
+  return levelup('./test/db' + String(count++), xtend({
+    db: leveldown,
+    keyEncoding: 'utf8',
+    valueEncoding: 'json'
+  }, opts))
 }
 
 function crud (t, db) {
@@ -95,7 +95,7 @@ test('CRUD custom 2PL', function (t) {
 test('Prefix and Codec', function (t) {
   t.plan(11)
 
-  var db = newDB()
+  var db = sublevel(newDB())
 
   var tx = transaction(db.sublevel('a'), {
     keyEncoding: 'json',
@@ -145,7 +145,7 @@ test('Parallelism', function (t) {
   var i
   var n = 100
 
-  var db = newDB()
+  var db = sublevel(newDB())
   var sub = db.sublevel('sub')
 
   function inc () {
@@ -482,4 +482,8 @@ test('ReadStream', function (t) {
       })
     })
   })
+})
+
+test('clean up', function (t) {
+  require('rimraf')('./test/db*', t.end)
 })

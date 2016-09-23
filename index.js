@@ -34,22 +34,26 @@ function Transaction (db, options) {
     options.createLock = levelup._createLock = levelup._createLock || lockCreator()
   }
 
+  var location
+
   // init txdown
   if (db instanceof Transaction) {
     // db is Transaction, get its levelup
     this._levelup = db._levelup
     options.db = txdown(db._levelup, options.createLock)
+    location = db.location
   } else if (isFunction(db.sublevel) && isFunction(db.levelup)) {
     // db is sublevelup, get its levelup
     this._levelup = db.levelup()
     options.db = txdown(db.levelup(), options.createLock)
+    location = db.location
   } else {
     // db is LevelUP, wrap txdown
     this._levelup = db
     options.db = txdown(db)
+    location = ''
   }
 
-  var location = db.location
   // LevelUP.call(this, options.db(location), options)
   LevelUP.call(this, location, options)
 
