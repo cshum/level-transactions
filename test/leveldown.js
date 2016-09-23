@@ -5,7 +5,7 @@ var testCommon = require('abstract-leveldown/testCommon')
 var testBuffer = require('./testdata_b64')
 var Lock = require('../lock')
 
-require('rimraf').sync('./test/db*')
+require('rimraf').sync('./test/db_2')
 
 var db = levelup('./test/db_2')
 
