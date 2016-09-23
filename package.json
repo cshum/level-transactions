@@ -1,6 +1,6 @@
 {
   "name": "level-transactions",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Transaction layer for LevelDB",
   "author": "Adrian C Shum <adrian@cshum.com>",
   "scripts": {
