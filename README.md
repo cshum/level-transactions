@@ -8,7 +8,7 @@ Transaction layer for Node.js [LevelDB](https://github.com/rvagg/node-levelup).
 npm install level-transactions
 ```
 
-level-transactions provides a in-memory locking mechanism for key based operations, isolation and atomic commits.
+level-transactions provides in-memory locking mechanism for key based operations, isolation and atomic commits.
 Also works across sublevels using [SublevelUP](https://github.com/cshum/sublevelup/).
 
 level-transaction@2 rewrite introduces full compatibility with all common methods of [LevelUP](https://github.com/Level/levelup).
