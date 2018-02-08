@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "callback-stream": "^1.1.0",
-    "leveldown": "^1.4.6",
+    "leveldown": "^3.0.0",
     "levelup": "^2.0.1",
     "rimraf": "^2.4.2",
     "standard": "^7.1.2",
