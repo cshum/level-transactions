@@ -11,7 +11,7 @@ require('rimraf').sync('./test/db*')
 
 var count = 0
 function newDB (opts) {
-  return levelup('./test/db' + String(count++), xtend({
+  return levelup(leveldown('./test/db' + String(count++)), xtend({
     db: leveldown,
     keyEncoding: 'utf8',
     valueEncoding: 'json'

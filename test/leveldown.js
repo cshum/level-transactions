@@ -1,5 +1,6 @@
 var test = require('tape')
 var levelup = require('levelup')
+var leveldown = require('leveldown')
 var txdown = require('../leveldown')
 var testCommon = require('abstract-leveldown/testCommon')
 var testBuffer = require('./testdata_b64')
@@ -7,7 +8,7 @@ var Lock = require('../lock')
 
 require('rimraf').sync('./test/db_2')
 
-var db = levelup('./test/db_2')
+var db = levelup(leveldown('./test/db_2'))
 
 var locks = []
 var shared = {}
