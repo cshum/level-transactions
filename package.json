@@ -19,7 +19,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "abstract-leveldown": "^2.6.0",
+    "abstract-leveldown": "^4.0.2",
     "async-depth-first": "^1.0.3",
     "errno": "^0.1.4",
     "functional-red-black-tree": "^1.0.1",
