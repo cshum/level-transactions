@@ -50,7 +50,7 @@ function factory (db, options) {
     } else {
       // db is LevelUP, wrap txdown
       this._levelup = db
-      options.db = txdown(db)
+      options.db = txdown(db, options.createLock)
       location = ''
     }
     this.location = location
@@ -67,6 +67,7 @@ function factory (db, options) {
 
   inherits(Transaction, LevelUP)
 
+  /*
   // override to bypass opening state and deferred
   Transaction.prototype.open = function (cb) {
     var self = this
@@ -106,6 +107,7 @@ function factory (db, options) {
       })
     }
   }
+  */
 
   Transaction.prototype._getOptions = function (opts) {
     return xtend(
